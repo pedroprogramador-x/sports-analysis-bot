@@ -62,3 +62,4 @@ print("\nESCANTEIOS:")
 print(f"Sugestão: {resultado_escanteios}")
 print(f"Confiança: {confianca_escanteios}")
 
+#teste
