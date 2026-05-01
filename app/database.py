@@ -5,9 +5,14 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite:///./sports_analysis.db"
-    app_name: str = "Sports Analysis Bot v2"
+    database_url: str
+    app_name: str = "Sports Analysis Bot v3"
     debug: bool = True
+    telegram_token: str = ""
+    telegram_chat_id: str = ""
+    secret_key: str = ""
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
 
     class Config:
         env_file = ".env"
@@ -22,15 +27,7 @@ class Base(DeclarativeBase):
     pass
 
 
-def get_engine():
-    settings = get_settings()
-    connect_args = {}
-    if "sqlite" in settings.database_url:
-        connect_args = {"check_same_thread": False}
-    return create_engine(settings.database_url, connect_args=connect_args)
-
-
-engine = get_engine()
+engine = create_engine(get_settings().database_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
