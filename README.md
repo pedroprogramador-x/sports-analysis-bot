@@ -1,26 +1,27 @@
-# ⚽ Sports Analysis Bot V2
+# ⚽ Sports Analysis Bot V3
 
-API REST para análise estatística de jogos de futebol com sugestões de Over/Under para gols e escanteios.
+API REST para análise estatística de jogos de futebol com sugestões de Over/Under para gols e escanteios, notificações via Telegram e autenticação JWT.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)
-![SQLite](https://img.shields.io/badge/SQLite-Database-lightblue?logo=sqlite)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-316192?logo=postgresql)
+![Telegram](https://img.shields.io/badge/Telegram-Bot-2CA5E0?logo=telegram)
+![JWT](https://img.shields.io/badge/JWT-Auth-black?logo=jsonwebtokens)
 ![Status](https://img.shields.io/badge/Status-Concluído-brightgreen)
 
 ---
 
 ## 📌 Sobre o Projeto
 
-O Sports Analysis Bot nasceu como um script simples de terminal e evoluiu para uma API REST profissional. A V2 aplica
-conceitos de arquitetura em camadas, persistência de dados e validação automática para gerar análises de jogos de
-futebol com base em médias estatísticas.
+O Sports Analysis Bot nasceu como um script simples de terminal e evoluiu para uma API REST profissional com autenticação, banco de dados robusto e integração com Telegram.
 
 ### Evolução do projeto
 
-| Versão | Tecnologia       | Descrição                                             |
-|--------|------------------|-------------------------------------------------------|
-| V1     | Python puro      | Script de terminal com input manual                   |
-| V2     | FastAPI + SQLite | API REST com banco de dados e documentação automática |
+| Versão | Tecnologia | Descrição |
+|--------|------------|-----------|
+| V1 | Python puro | Script de terminal com input manual |
+| V2 | FastAPI + SQLite | API REST com banco de dados e documentação automática |
+| V3 | FastAPI + PostgreSQL + JWT + Telegram | API profissional com autenticação e notificações em tempo real |
 
 ---
 
@@ -29,29 +30,36 @@ futebol com base em médias estatísticas.
 - Cadastro de jogos com médias estatísticas
 - Geração automática de análises Over/Under
 - Cálculo de grau de confiança (Alta / Média / Baixa)
-- Persistência de jogos e análises em banco de dados
+- Persistência de jogos e análises em PostgreSQL
 - Validação automática de dados de entrada
+- Autenticação com JWT (registro e login)
+- Notificações automáticas via Telegram ao gerar análise
+- Endpoint para reenviar análises existentes ao Telegram
 - Documentação interativa via Swagger UI
 
 ---
 
 ## 🏗️ Arquitetura
 
-O projeto segue uma arquitetura em camadas com separação total de responsabilidades:
-
 ```
 app/
-├── main.py              # Inicialização da aplicação
-├── database.py          # Configuração do banco de dados
-├── models/              # Modelos ORM (tabelas)
+├── main.py                     # Inicialização da aplicação
+├── database.py                 # Configuração do PostgreSQL
+├── core/
+│   └── security.py             # JWT — geração e validação de tokens
+├── models/                     # Modelos ORM (tabelas)
 │   ├── match.py
-│   └── analysis.py
-├── schemas/             # Validação de entrada e saída (Pydantic)
+│   ├── analysis.py
+│   └── user.py
+├── schemas/                    # Validação de entrada e saída (Pydantic)
 │   ├── match.py
-│   └── analysis.py
-├── services/            # Lógica de negócio
-│   └── analysis_service.py
-└── routers/             # Endpoints da API
+│   ├── analysis.py
+│   └── user.py
+├── services/                   # Lógica de negócio
+│   ├── analysis_service.py     # Cálculo Over/Under
+│   └── telegram_service.py     # Envio de notificações
+└── routers/                    # Endpoints da API
+    ├── auth.py                 # Registro e login
     ├── matches.py
     └── analysis.py
 ```
@@ -62,8 +70,11 @@ app/
 
 - **[FastAPI](https://fastapi.tiangolo.com/)** — Framework web moderno e de alta performance
 - **[SQLAlchemy](https://www.sqlalchemy.org/)** — ORM para abstração do banco de dados
+- **[PostgreSQL](https://www.postgresql.org/)** — Banco de dados relacional robusto
 - **[Pydantic](https://docs.pydantic.dev/)** — Validação de dados e schemas
-- **[SQLite](https://www.sqlite.org/)** — Banco de dados relacional leve
+- **[Python-Jose](https://python-jose.readthedocs.io/)** — Geração e validação de tokens JWT
+- **[Passlib](https://passlib.readthedocs.io/)** — Hash seguro de senhas com bcrypt
+- **[HTTPX](https://www.python-httpx.org/)** — Cliente HTTP para integração com Telegram
 - **[Uvicorn](https://www.uvicorn.org/)** — Servidor ASGI para rodar a aplicação
 
 ---
@@ -73,7 +84,8 @@ app/
 ### Pré-requisitos
 
 - Python 3.11+
-- pip
+- PostgreSQL instalado e rodando
+- Bot do Telegram criado via @BotFather
 
 ### Instalação
 
@@ -84,14 +96,28 @@ cd sports-analysis-bot
 
 # Crie e ative o ambiente virtual
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/Mac
+.venv\Scripts\activate        # Windows
+source .venv/bin/activate     # Linux/Mac
 
 # Instale as dependências
 pip install fastapi uvicorn sqlalchemy pydantic-settings python-dotenv
+pip install python-jose[cryptography] passlib[bcrypt] httpx psycopg2-binary
 
 # Configure as variáveis de ambiente
 cp .env.example .env
+```
+
+### Variáveis de ambiente (.env)
+
+```env
+DATABASE_URL=postgresql://postgres:SUA_SENHA@localhost:5432/sports_analysis_v3
+APP_NAME=Sports Analysis Bot v3
+DEBUG=True
+TELEGRAM_TOKEN=SEU_TOKEN_AQUI
+TELEGRAM_CHAT_ID=SEU_CHAT_ID_AQUI
+SECRET_KEY=sua_chave_secreta_aqui
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```
 
 ### Rodando a aplicação
@@ -106,34 +132,63 @@ Acesse a documentação interativa em: **http://127.0.0.1:8000/docs**
 
 ## 📡 Endpoints
 
+### Auth
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/api/auth/register` | Cadastrar novo usuário |
+| `POST` | `/api/auth/login` | Login e geração de token JWT |
+
 ### Jogos
 
-| Método | Rota                | Descrição             |
-|--------|---------------------|-----------------------|
-| `POST` | `/api/matches/`     | Cadastrar novo jogo   |
-| `GET`  | `/api/matches/`     | Listar todos os jogos |
-| `GET`  | `/api/matches/{id}` | Buscar jogo por ID    |
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/api/matches/` | Cadastrar novo jogo |
+| `GET` | `/api/matches/` | Listar todos os jogos |
+| `GET` | `/api/matches/{id}` | Buscar jogo por ID |
 
 ### Análises
 
-| Método | Rota                       | Descrição                  |
-|--------|----------------------------|----------------------------|
-| `POST` | `/api/analysis/{match_id}` | Gerar análise de um jogo   |
-| `GET`  | `/api/analysis/{match_id}` | Buscar análises de um jogo |
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/api/analysis/{match_id}` | Gerar análise e notificar Telegram |
+| `GET` | `/api/analysis/{match_id}` | Buscar análises de um jogo |
+| `POST` | `/api/analysis/{match_id}/notify` | Reenviar análise ao Telegram |
 
 ---
 
 ## 📊 Exemplo de uso
 
-**Cadastrar um jogo:**
+**1. Registrar usuário:**
+```json
+POST /api/auth/register
+{
+  "username": "pedro",
+  "password": "123456"
+}
+```
 
+**2. Fazer login:**
+```
+POST /api/auth/login
+username=pedro&password=123456
+```
+Retorna:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1...",
+  "token_type": "bearer"
+}
+```
+
+**3. Cadastrar um jogo:**
 ```json
 POST /api/matches/
 {
   "team_a": "Flamengo",
   "team_b": "Vasco",
-  "goals_avg_a": 1.8,
-  "goals_avg_b": 1.2,
+  "goals_avg_a": 2.1,
+  "goals_avg_b": 1.3,
   "corners_avg_a": 6.5,
   "corners_avg_b": 5.0,
   "goals_line": 2.5,
@@ -141,24 +196,31 @@ POST /api/matches/
 }
 ```
 
-**Resposta da análise:**
+**4. Gerar análise (notifica Telegram automaticamente):**
+```
+POST /api/analysis/1
+```
 
-```json
-{
-  "goals_suggestion": "Evitar",
-  "goals_confidence": "Baixa",
-  "goals_diff": 0.5,
-  "corners_suggestion": "Over",
-  "corners_confidence": "Média",
-  "corners_diff": 1.0
-}
+**Notificação recebida no Telegram:**
+```
+⚽ Flamengo vs Vasco
+────────────────────────────
+🥅 GOLS
+  📈 Sugestão: Over
+  🟡 Confiança: Média
+  📊 Diferença: +0.90
+
+🚩 ESCANTEIOS
+  📈 Sugestão: Over
+  🟡 Confiança: Média
+  📊 Diferença: +1.00
 ```
 
 ---
 
 ## 🔮 Próximas versões
 
-- [ ] **V3** — PostgreSQL + Autenticação JWT + Bot do Telegram + Frontend
+- [ ] **V4** — Frontend web + proteção de rotas com JWT + histórico de análises
 
 ---
 
@@ -166,4 +228,4 @@ POST /api/matches/
 
 Feito por **pedroprogramador-x**
 
-[![GitHub](https://img.shields.io/badge/GitHub-pedroprogramador--x-black?logo=github)](https://github.com/pedroprogramador-x)
+[![GitHub](https://img.shields.io/badge/GitHub-pedroprogramador--x-black?logo=github)](https://github.com/pedroprogramador-x)        
