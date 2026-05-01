@@ -1,231 +1,213 @@
-# ⚽ Sports Analysis Bot V3
+# ⚽ Sports Analysis Bot
 
-API REST para análise estatística de jogos de futebol com sugestões de Over/Under para gols e escanteios, notificações via Telegram e autenticação JWT.
-
-![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-316192?logo=postgresql)
-![Telegram](https://img.shields.io/badge/Telegram-Bot-2CA5E0?logo=telegram)
-![JWT](https://img.shields.io/badge/JWT-Auth-black?logo=jsonwebtokens)
-![Status](https://img.shields.io/badge/Status-Concluído-brightgreen)
+API de análise esportiva com pick diário automático, acumulador inteligente e notificações no Telegram — construída com FastAPI, PostgreSQL e dados reais de futebol.
 
 ---
 
-## 📌 Sobre o Projeto
+## 🚀 Versões
 
-O Sports Analysis Bot nasceu como um script simples de terminal e evoluiu para uma API REST profissional com autenticação, banco de dados robusto e integração com Telegram.
-
-### Evolução do projeto
-
-| Versão | Tecnologia | Descrição |
-|--------|------------|-----------|
-| V1 | Python puro | Script de terminal com input manual |
-| V2 | FastAPI + SQLite | API REST com banco de dados e documentação automática |
-| V3 | FastAPI + PostgreSQL + JWT + Telegram | API profissional com autenticação e notificações em tempo real |
+| Versão | Branch | Destaques |
+|--------|--------|-----------|
+| V1 | `master` | Script Python com input manual, lógica Over/Under básica |
+| V2 | `master` | API REST com FastAPI + SQLite, Swagger UI |
+| V3 | `v3-postgres-telegram-jwt` | PostgreSQL + autenticação JWT + Telegram Bot |
+| V4 | `v4-real-data-daily-pick` | BSD API (dados reais) + pick diário automático + acumulador |
 
 ---
 
-## 🚀 Funcionalidades
+## ✨ Funcionalidades
 
-- Cadastro de jogos com médias estatísticas
-- Geração automática de análises Over/Under
-- Cálculo de grau de confiança (Alta / Média / Baixa)
-- Persistência de jogos e análises em PostgreSQL
-- Validação automática de dados de entrada
-- Autenticação com JWT (registro e login)
-- Notificações automáticas via Telegram ao gerar análise
-- Endpoint para reenviar análises existentes ao Telegram
-- Documentação interativa via Swagger UI
+### Pick Diário Automático
+- Busca todos os jogos do dia via BSD API (dados reais)
+- Filtra entradas com **85%+ de probabilidade** e **odd ~2.00**
+- Envia automaticamente no Telegram todo dia às **9h**
+- Se não houver entrada boa, notifica "fique em paz" — sem entradas forçadas
+
+### Acumulador Inteligente
+- Combina 2 jogos com **75%+ de probabilidade** cada
+- Odd total alvo: **~4.00**
+- Exibe probabilidade combinada real de cada acumulador
+
+### Análise Manual
+- Criação de jogos e análise via API REST
+- Histórico salvo no PostgreSQL
+- Reenvio de análises ao Telegram via endpoint `/notify`
+
+### Autenticação JWT
+- Registro e login de usuários
+- Token Bearer para rotas protegidas
 
 ---
 
-## 🏗️ Arquitetura
+## 🛠 Stack tecnológica
+
+| Camada | Tecnologia |
+|--------|-----------|
+| API | FastAPI + Uvicorn |
+| Banco de dados | PostgreSQL |
+| Autenticação | JWT (python-jose + bcrypt) |
+| Dados esportivos | BSD API (Bzzoiro Sports Data) |
+| Agendamento | APScheduler |
+| Notificações | Telegram Bot API |
+| HTTP Client | httpx |
+| ORM | SQLAlchemy |
+| Validação | Pydantic v2 |
+
+---
+
+## 📂 Estrutura do projeto
 
 ```
 app/
-├── main.py                     # Inicialização da aplicação
-├── database.py                 # Configuração do PostgreSQL
 ├── core/
-│   └── security.py             # JWT — geração e validação de tokens
-├── models/                     # Modelos ORM (tabelas)
-│   ├── match.py
+│   └── security.py          # JWT: geração e validação de tokens
+├── models/
+│   ├── match.py             # Tabela de jogos
+│   ├── analysis.py          # Tabela de análises
+│   └── user.py              # Tabela de usuários
+├── schemas/
+│   ├── match.py             # Schemas de entrada/saída
 │   ├── analysis.py
 │   └── user.py
-├── schemas/                    # Validação de entrada e saída (Pydantic)
-│   ├── match.py
-│   ├── analysis.py
-│   └── user.py
-├── services/                   # Lógica de negócio
-│   ├── analysis_service.py     # Cálculo Over/Under
-│   └── telegram_service.py     # Envio de notificações
-└── routers/                    # Endpoints da API
-    ├── auth.py                 # Registro e login
-    ├── matches.py
-    └── analysis.py
+├── routers/
+│   ├── auth.py              # /auth — registro e login
+│   ├── matches.py           # /matches — CRUD de jogos
+│   ├── analysis.py          # /analysis — análises manuais
+│   └── daily_pick.py        # /daily-pick — pick e acumulador do dia
+├── services/
+│   ├── analysis_service.py  # Lógica Over/Under manual
+│   ├── bsd_service.py       # Integração BSD API
+│   ├── daily_pick_service.py# Seleção do pick e acumulador
+│   ├── scheduler_service.py # Agendador diário (9h)
+│   └── telegram_service.py  # Notificações Telegram
+├── database.py              # Configuração PostgreSQL + Settings
+└── main.py                  # Inicialização FastAPI + routers
 ```
 
 ---
 
-## 🛠️ Tecnologias
+## ⚙️ Variáveis de ambiente
 
-- **[FastAPI](https://fastapi.tiangolo.com/)** — Framework web moderno e de alta performance
-- **[SQLAlchemy](https://www.sqlalchemy.org/)** — ORM para abstração do banco de dados
-- **[PostgreSQL](https://www.postgresql.org/)** — Banco de dados relacional robusto
-- **[Pydantic](https://docs.pydantic.dev/)** — Validação de dados e schemas
-- **[Python-Jose](https://python-jose.readthedocs.io/)** — Geração e validação de tokens JWT
-- **[Passlib](https://passlib.readthedocs.io/)** — Hash seguro de senhas com bcrypt
-- **[HTTPX](https://www.python-httpx.org/)** — Cliente HTTP para integração com Telegram
-- **[Uvicorn](https://www.uvicorn.org/)** — Servidor ASGI para rodar a aplicação
-
----
-
-## ⚙️ Como executar
-
-### Pré-requisitos
-
-- Python 3.11+
-- PostgreSQL instalado e rodando
-- Bot do Telegram criado via @BotFather
-
-### Instalação
-
-```bash
-# Clone o repositório
-git clone https://github.com/pedroprogramador-x/sports-analysis-bot.git
-cd sports-analysis-bot
-
-# Crie e ative o ambiente virtual
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-source .venv/bin/activate     # Linux/Mac
-
-# Instale as dependências
-pip install fastapi uvicorn sqlalchemy pydantic-settings python-dotenv
-pip install python-jose[cryptography] passlib[bcrypt] httpx psycopg2-binary
-
-# Configure as variáveis de ambiente
-cp .env.example .env
-```
-
-### Variáveis de ambiente (.env)
+Cria um arquivo `.env` na raiz do projeto:
 
 ```env
-DATABASE_URL=postgresql://postgres:SUA_SENHA@localhost:5432/sports_analysis_v3
-APP_NAME=Sports Analysis Bot v3
-DEBUG=True
-TELEGRAM_TOKEN=SEU_TOKEN_AQUI
-TELEGRAM_CHAT_ID=SEU_CHAT_ID_AQUI
-SECRET_KEY=sua_chave_secreta_aqui
+DATABASE_URL=postgresql://usuario:senha@localhost/sports_analysis
+SECRET_KEY=sua_chave_secreta
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+TELEGRAM_TOKEN=token_do_seu_bot
+TELEGRAM_CHAT_ID=seu_chat_id
+BSD_API_KEY=sua_chave_bsd
 ```
 
-### Rodando a aplicação
+---
+
+## ▶️ Como executar
 
 ```bash
+# 1. Cria e ativa o ambiente virtual
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # Linux/Mac
+
+# 2. Instala as dependências
+pip install fastapi uvicorn sqlalchemy psycopg2-binary pydantic-settings
+pip install python-jose[cryptography] passlib[bcrypt] httpx APScheduler
+
+# 3. Configura o .env com suas variáveis
+
+# 4. Sobe o servidor
 uvicorn app.main:app --reload
 ```
 
-Acesse a documentação interativa em: **http://127.0.0.1:8000/docs**
+Acessa a documentação interativa em: `http://127.0.0.1:8000/docs`
 
 ---
 
-## 📡 Endpoints
+## 📡 Endpoints principais
 
-### Auth
-
+### 🔐 Auth
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| `POST` | `/api/auth/register` | Cadastrar novo usuário |
-| `POST` | `/api/auth/login` | Login e geração de token JWT |
+| POST | `/api/auth/register` | Registrar usuário |
+| POST | `/api/auth/login` | Login + retorna JWT |
 
-### Jogos
-
+### ⚽ Matches
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| `POST` | `/api/matches/` | Cadastrar novo jogo |
-| `GET` | `/api/matches/` | Listar todos os jogos |
-| `GET` | `/api/matches/{id}` | Buscar jogo por ID |
+| POST | `/api/matches/` | Criar jogo manualmente |
+| GET | `/api/matches/` | Listar jogos |
 
-### Análises
-
+### 📊 Analysis
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| `POST` | `/api/analysis/{match_id}` | Gerar análise e notificar Telegram |
-| `GET` | `/api/analysis/{match_id}` | Buscar análises de um jogo |
-| `POST` | `/api/analysis/{match_id}/notify` | Reenviar análise ao Telegram |
+| POST | `/api/analysis/{match_id}` | Gerar análise + notifica Telegram |
+| GET | `/api/analysis/{match_id}` | Buscar análises do jogo |
+| POST | `/api/analysis/{match_id}/notify` | Reenviar análise ao Telegram |
+
+### 🎯 Daily Pick
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/daily-pick/today` | Buscar pick do dia |
+| POST | `/api/daily-pick/today/notify` | Enviar pick ao Telegram |
+| POST | `/api/daily-pick/today/notify-acca` | Enviar acumulador ao Telegram |
+| POST | `/api/daily-pick/today/notify-all` | Enviar pick + acumulador |
 
 ---
 
-## 📊 Exemplo de uso
+## 📱 Exemplo de notificação no Telegram
 
-**1. Registrar usuário:**
-```json
-POST /api/auth/register
-{
-  "username": "pedro",
-  "password": "123456"
-}
+**Pick simples:**
 ```
-
-**2. Fazer login:**
-```
-POST /api/auth/login
-username=pedro&password=123456
-```
-Retorna:
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1...",
-  "token_type": "bearer"
-}
-```
-
-**3. Cadastrar um jogo:**
-```json
-POST /api/matches/
-{
-  "team_a": "Flamengo",
-  "team_b": "Vasco",
-  "goals_avg_a": 2.1,
-  "goals_avg_b": 1.3,
-  "corners_avg_a": 6.5,
-  "corners_avg_b": 5.0,
-  "goals_line": 2.5,
-  "corners_line": 10.5
-}
-```
-
-**4. Gerar análise (notifica Telegram automaticamente):**
-```
-POST /api/analysis/1
-```
-
-**Notificação recebida no Telegram:**
-```
-⚽ Flamengo vs Vasco
+🎯 PICK DO DIA
 ────────────────────────────
-🥅 GOLS
-  📈 Sugestão: Over
-  🟡 Confiança: Média
-  📊 Diferença: +0.90
+⚽ Manchester City vs Arsenal
+🏆 Premier League
+🕐 Horário: 2026-05-02T16:00:00
 
-🚩 ESCANTEIOS
-  📈 Sugestão: Over
-  🟡 Confiança: Média
-  📊 Diferença: +1.00
+📌 Mercado: Over 2.5 gols
+💰 Odd: 1.95
+📊 Probabilidade: 87.3%
+
+🟢 Confiança: Alta
+```
+
+**Acumulador:**
+```
+🎲 ACUMULADOR DO DIA — Odd ~4.12
+────────────────────────────
+
+1️⃣ Real Madrid vs Barcelona
+🏆 La Liga
+📌 Ambas marcam (BTTS) @ 1.95
+📊 Prob: 78.4%
+
+2️⃣ Bayern München vs Dortmund
+🏆 Bundesliga
+📌 Over 2.5 gols @ 2.11
+📊 Prob: 76.1%
+
+────────────────────────────
+💰 Odd total: 4.12
+🟡 Prob. combinada: 59.7%
 ```
 
 ---
 
-## 🔮 Próximas versões
+## 🗺 Roadmap
 
-- [ ] **V4** — Frontend web + proteção de rotas com JWT + histórico de análises
+- [x] V1 — Script terminal com lógica manual
+- [x] V2 — API REST + Swagger
+- [x] V3 — PostgreSQL + JWT + Telegram
+- [x] V4 — Dados reais (BSD API) + pick diário automático + acumulador
+- [ ] V4 Fase 2 — Cache Redis + histórico de acertos
+- [ ] V4 Fase 3 — Dashboard web com Chart.js
+- [ ] V4 Fase 4 — Deploy em produção (Railway)
 
 ---
 
 ## 👨‍💻 Autor
 
-Feito por **pedroprogramador-x**
+**Pedro** — [@pedroprogramador-x](https://github.com/pedroprogramador-x)
 
-[![GitHub](https://img.shields.io/badge/GitHub-pedroprogramador--x-black?logo=github)](https://github.com/pedroprogramador-x)        
+Projeto desenvolvido para portfólio com foco em arquitetura profissional, boas práticas e evolução incremental por versões.
