@@ -61,3 +61,36 @@ async def send_command_analysis(
             }
         )
     return r.status_code == 200
+async def send_daily_pick_notification(pick: dict | None) -> bool:
+    if not pick:
+        message = (
+            "⚠️ *Pick do dia*\n"
+            "Nenhuma entrada com 85%+ de confiança encontrada hoje.\n"
+            "Fique em paz. 🧘"
+        )
+    else:
+        prob = pick["probability"]
+        confianca = "Muito Alta" if prob >= 90 else "Alta"
+        emoji = "🟢" if prob >= 90 else "🟡"
+        message = (
+            f"🎯 *PICK DO DIA*\n"
+            f"{'─' * 28}\n"
+            f"⚽ *{pick['home_team']} vs {pick['away_team']}*\n"
+            f"🏆 {pick['league']}\n"
+            f"🕐 Horário: {pick['kickoff']}\n\n"
+            f"📌 Mercado: *{pick['market']}*\n"
+            f"💰 Odd: *{pick['odd']}*\n"
+            f"📊 Probabilidade: *{prob}%*\n\n"
+            f"{emoji} Confiança: {confianca}"
+        )
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{TELEGRAM_URL}/sendMessage",
+            json={
+                "chat_id": settings.telegram_chat_id,
+                "text": message,
+                "parse_mode": "Markdown"
+            }
+        )
+    return r.status_code == 200
