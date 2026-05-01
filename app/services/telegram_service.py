@@ -61,6 +61,8 @@ async def send_command_analysis(
             }
         )
     return r.status_code == 200
+
+
 async def send_daily_pick_notification(pick: dict | None) -> bool:
     if not pick:
         message = (
@@ -82,6 +84,45 @@ async def send_daily_pick_notification(pick: dict | None) -> bool:
             f"💰 Odd: *{pick['odd']}*\n"
             f"📊 Probabilidade: *{prob}%*\n\n"
             f"{emoji} Confiança: {confianca}"
+        )
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{TELEGRAM_URL}/sendMessage",
+            json={
+                "chat_id": settings.telegram_chat_id,
+                "text": message,
+                "parse_mode": "Markdown"
+            }
+        )
+    return r.status_code == 200
+
+
+async def send_daily_acca_notification(acca: dict | None) -> bool:
+    if not acca:
+        message = (
+            "🎲 *Acumulador do dia*\n"
+            "Não foram encontrados 2 jogos com critérios suficientes hoje."
+        )
+    else:
+        leg1, leg2 = acca["legs"]
+        prob = acca["combined_probability"]
+        emoji = "🟢" if prob >= 50 else "🟡"
+
+        message = (
+            f"🎲 *ACUMULADOR DO DIA — Odd ~{acca['total_odd']}*\n"
+            f"{'─' * 28}\n\n"
+            f"1️⃣ *{leg1['home_team']} vs {leg1['away_team']}*\n"
+            f"🏆 {leg1['league']}\n"
+            f"📌 {leg1['market']} @ *{leg1['odd']}*\n"
+            f"📊 Prob: {leg1['probability']}%\n\n"
+            f"2️⃣ *{leg2['home_team']} vs {leg2['away_team']}*\n"
+            f"🏆 {leg2['league']}\n"
+            f"📌 {leg2['market']} @ *{leg2['odd']}*\n"
+            f"📊 Prob: {leg2['probability']}%\n\n"
+            f"{'─' * 28}\n"
+            f"💰 Odd total: *{acca['total_odd']}*\n"
+            f"{emoji} Prob. combinada: *{prob}%*"
         )
 
     async with httpx.AsyncClient() as client:
