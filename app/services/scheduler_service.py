@@ -16,7 +16,7 @@ def run_daily_pick():
 
 
 def start_scheduler():
-    scheduler = BackgroundScheduler(timezone="America/Maceio")
+    scheduler = BackgroundScheduler(timezone="America/Fortaleza")
     scheduler.add_job(run_daily_pick, "cron", hour=9, minute=0)
     scheduler.start()
     return scheduler

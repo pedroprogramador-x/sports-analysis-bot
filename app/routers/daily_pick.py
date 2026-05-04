@@ -35,13 +35,24 @@ async def notify_todays_acca():
 
 @router.post("/today/notify-all")
 async def notify_all():
-    """Manda pick simples + acumulador no Telegram de uma vez."""
+    """Manda pick conservador + arrojado + acumulador no Telegram."""
+    from app.services.daily_pick_service import find_conservative_pick
+    from app.services.telegram_service import send_conservative_pick_notification
+
+    conservative = await find_conservative_pick()
     pick = await find_daily_pick()
     acca = await find_daily_acca()
+
+    await send_conservative_pick_notification(conservative)
     await send_daily_pick_notification(pick)
     await send_daily_acca_notification(acca)
-    return {"sent": True, "pick": pick, "acca": acca}
 
+    return {
+        "sent": True,
+        "conservative": conservative,
+        "bold_pick": pick,
+        "acca": acca
+    }
 
 @router.get("/debug")
 async def debug_todays_events():
@@ -75,7 +86,7 @@ async def debug_prediction():
         results.append({
             "jogo": f"{event.get('home_team')} vs {event.get('away_team')}",
             "odds_over_25": event.get("odds_over_25"),
-            "odds_btts_yes": event.get("odds_btts_yes"),
+            "odds_bttuvicorn app.main:app --reloads_yes": event.get("odds_btts_yes"),
             "predicao_completa": pred
         })
     return results
