@@ -12,7 +12,6 @@ async def send_analysis_notification(
 ) -> bool:
     emoji_map = {"Over": "📈", "Under": "📉", "Evitar": "⚠️"}
     conf_map = {"Alta": "🟢", "Média": "🟡", "Baixa": "🔴"}
-
     message = (
         f"⚽ *{team_a} vs {team_b}*\n"
         f"{'─' * 28}\n"
@@ -25,15 +24,10 @@ async def send_analysis_notification(
         f"  {conf_map[corners_confidence]} Confiança: *{corners_confidence}*\n"
         f"  📊 Diferença: `{corners_diff:+.2f}`"
     )
-
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "text": message,
-                "parse_mode": "Markdown"
-            }
+            json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
         )
     return r.status_code == 200
 
@@ -50,121 +44,89 @@ async def send_command_analysis(
         f"🥅 Gols: *{goals_suggestion}* ({goals_confidence})\n"
         f"🚩 Escanteios: *{corners_suggestion}* ({corners_confidence})"
     )
-
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "text": message,
-                "parse_mode": "Markdown"
-            }
+            json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
         )
     return r.status_code == 200
 
 
 async def send_conservative_pick_notification(pick: dict | None) -> bool:
     if not pick:
-        message = (
-            "🛡️ *Pick Conservador*\n"
-            "Nenhuma entrada com 75%+ na faixa 1.40–1.65 hoje."
-        )
+        message = "🛡️ *Pick Conservador*\nNenhuma value bet encontrada hoje na faixa 1.30–1.75."
     else:
-        prob = pick["probability"]
-        emoji = "🟢" if prob >= 80 else "🟡"
+        value_pct = round(pick["value"] * 100, 1)
         message = (
             f"🛡️ *PICK CONSERVADOR*\n"
             f"{'─' * 28}\n"
             f"⚽ *{pick['home_team']} vs {pick['away_team']}*\n"
             f"🏆 {pick['league']}\n"
-            f"🕐 Horário: {pick['kickoff']}\n\n"
+            f"🕐 {pick['kickoff']}\n\n"
             f"📌 Mercado: *{pick['market']}*\n"
             f"💰 Odd: *{pick['odd']}*\n"
-            f"📊 Probabilidade: *{prob}%*\n\n"
-            f"{emoji} Confiança: {'Alta' if prob >= 80 else 'Média'}"
+            f"📊 Prob. estimada: *{pick['probability']}%*\n"
+            f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
-
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "text": message,
-                "parse_mode": "Markdown"
-            }
+            json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
         )
     return r.status_code == 200
 
 
 async def send_daily_pick_notification(pick: dict | None) -> bool:
     if not pick:
-        message = (
-            "⚠️ *Pick do dia*\n"
-            "Nenhuma entrada com 65%+ de confiança encontrada hoje.\n"
-            "Fique em paz. 🧘"
-        )
+        message = "🎯 *Pick Arrojado*\nNenhuma value bet encontrada hoje na faixa 1.75–3.00."
     else:
-        prob = pick["probability"]
-        confianca = "Muito Alta" if prob >= 80 else "Alta"
-        emoji = "🟢" if prob >= 80 else "🟡"
+        value_pct = round(pick["value"] * 100, 1)
         message = (
             f"🎯 *PICK ARROJADO*\n"
             f"{'─' * 28}\n"
             f"⚽ *{pick['home_team']} vs {pick['away_team']}*\n"
             f"🏆 {pick['league']}\n"
-            f"🕐 Horário: {pick['kickoff']}\n\n"
+            f"🕐 {pick['kickoff']}\n\n"
             f"📌 Mercado: *{pick['market']}*\n"
             f"💰 Odd: *{pick['odd']}*\n"
-            f"📊 Probabilidade: *{prob}%*\n\n"
-            f"{emoji} Confiança: {confianca}"
+            f"📊 Prob. estimada: *{pick['probability']}%*\n"
+            f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
-
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "text": message,
-                "parse_mode": "Markdown"
-            }
+            json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
         )
     return r.status_code == 200
 
 
 async def send_daily_acca_notification(acca: dict | None) -> bool:
     if not acca:
-        message = (
-            "🎲 *Acumulador do dia*\n"
-            "Não foram encontrados 2 jogos com critérios suficientes hoje."
-        )
+        message = "🎲 *Acumulador do dia*\nNão foram encontradas 2 value bets suficientes hoje."
     else:
         leg1, leg2 = acca["legs"]
-        prob = acca["combined_probability"]
-        emoji = "🟢" if prob >= 50 else "🟡"
-
+        v1 = round(leg1["value"] * 100, 1)
+        v2 = round(leg2["value"] * 100, 1)
+        vc = round(acca["combined_value"] * 100, 1)
         message = (
             f"🎲 *ACUMULADOR DO DIA — Odd ~{acca['total_odd']}*\n"
             f"{'─' * 28}\n\n"
             f"1️⃣ *{leg1['home_team']} vs {leg1['away_team']}*\n"
             f"🏆 {leg1['league']}\n"
             f"📌 {leg1['market']} @ *{leg1['odd']}*\n"
-            f"📊 Prob: {leg1['probability']}%\n\n"
+            f"📊 Prob: {leg1['probability']}% | {leg1['value_emoji']} Value: +{v1}%\n\n"
             f"2️⃣ *{leg2['home_team']} vs {leg2['away_team']}*\n"
             f"🏆 {leg2['league']}\n"
             f"📌 {leg2['market']} @ *{leg2['odd']}*\n"
-            f"📊 Prob: {leg2['probability']}%\n\n"
+            f"📊 Prob: {leg2['probability']}% | {leg2['value_emoji']} Value: +{v2}%\n\n"
             f"{'─' * 28}\n"
             f"💰 Odd total: *{acca['total_odd']}*\n"
-            f"{emoji} Prob. combinada: *{prob}%*"
+            f"📊 Prob. combinada: *{acca['combined_probability']}%*\n"
+            f"🔢 Value total: *+{vc}%*"
         )
-
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
-            json={
-                "chat_id": settings.telegram_chat_id,
-                "text": message,
-                "parse_mode": "Markdown"
-            }
+            json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
         )
     return r.status_code == 200
