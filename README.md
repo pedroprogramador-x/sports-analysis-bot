@@ -1,213 +1,159 @@
-# ⚽ Sports Analysis Bot
+# 🏆 Sports Analysis Bot
 
-API de análise esportiva com pick diário automático, acumulador inteligente e notificações no Telegram — construída com FastAPI, PostgreSQL e dados reais de futebol.
+> API REST para análise estatística de dados esportivos com predições de Machine Learning, autenticação JWT e notificações automáticas via Telegram.
 
----
-
-## 🚀 Versões
-
-| Versão | Branch | Destaques |
-|--------|--------|-----------|
-| V1 | `master` | Script Python com input manual, lógica Over/Under básica |
-| V2 | `master` | API REST com FastAPI + SQLite, Swagger UI |
-| V3 | `v3-postgres-telegram-jwt` | PostgreSQL + autenticação JWT + Telegram Bot |
-| V4 | `v4-real-data-daily-pick` | BSD API (dados reais) + pick diário automático + acumulador |
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![JWT](https://img.shields.io/badge/Auth-JWT-black?style=flat-square&logo=jsonwebtokens)
+![Status](https://img.shields.io/badge/Status-Em%20desenvolvimento-yellow?style=flat-square)
 
 ---
 
-## ✨ Funcionalidades
+## 📌 Sobre o projeto
 
-### Pick Diário Automático
-- Busca todos os jogos do dia via BSD API (dados reais)
-- Filtra entradas com **85%+ de probabilidade** e **odd ~2.00**
-- Envia automaticamente no Telegram todo dia às **9h**
-- Se não houver entrada boa, notifica "fique em paz" — sem entradas forçadas
+O **Sports Analysis Bot** consome dados em tempo real da [Bzzoiro Sports Data API](https://sports.bzzoiro.com) — incluindo jogos do dia, odds de 15+ bookmakers e predições geradas por um modelo CatBoost v5.0 treinado com 163 features por jogo.
 
-### Acumulador Inteligente
-- Combina 2 jogos com **75%+ de probabilidade** cada
-- Odd total alvo: **~4.00**
-- Exibe probabilidade combinada real de cada acumulador
+Com base nesses dados, o sistema aplica a lógica de **value betting**: só recomenda um jogo quando a probabilidade estimada pelo modelo é maior do que a probabilidade implícita precificada pelas casas. Todo dia às 9h, três picks são enviados automaticamente via Telegram para usuários cadastrados.
 
-### Análise Manual
-- Criação de jogos e análise via API REST
-- Histórico salvo no PostgreSQL
-- Reenvio de análises ao Telegram via endpoint `/notify`
-
-### Autenticação JWT
-- Registro e login de usuários
-- Token Bearer para rotas protegidas
+**Este projeto não é uma plataforma de apostas.** É um estudo aplicado de consumo de APIs, modelagem estatística, arquitetura REST e automação com Python.
 
 ---
 
-## 🛠 Stack tecnológica
+## ⚙️ Funcionalidades
+
+- 🔐 **Autenticação completa** — cadastro e login com JWT Bearer Token
+- 📊 **Análise de value betting** — compara probabilidade do modelo vs. odds do mercado
+- 📬 **Notificações automáticas via Telegram** — agendadas com APScheduler às 9h diariamente
+- 🧮 **3 tipos de pick por dia:**
+  - **Conservador** — odd entre 1.30 e 1.75
+  - **Arrojado** — odd entre 1.75 e 3.00
+  - **Acumulador** — 2 jogos combinados com odd ~4.00
+- 🌐 **Documentação interativa** via Swagger UI (`/docs`)
+
+---
+
+## 🛠️ Stack
 
 | Camada | Tecnologia |
-|--------|-----------|
-| API | FastAPI + Uvicorn |
+|---|---|
+| Framework | FastAPI |
 | Banco de dados | PostgreSQL |
-| Autenticação | JWT (python-jose + bcrypt) |
-| Dados esportivos | BSD API (Bzzoiro Sports Data) |
-| Agendamento | APScheduler |
-| Notificações | Telegram Bot API |
-| HTTP Client | httpx |
 | ORM | SQLAlchemy |
-| Validação | Pydantic v2 |
+| Autenticação | JWT (python-jose) |
+| Agendador | APScheduler |
+| Dados esportivos | Bzzoiro Sports Data API |
+| Notificações | Telegram Bot API |
+| Ambiente | Python 3.11+ / venv |
 
 ---
 
-## 📂 Estrutura do projeto
+## 🚀 Como executar localmente
 
-```
-app/
-├── core/
-│   └── security.py          # JWT: geração e validação de tokens
-├── models/
-│   ├── match.py             # Tabela de jogos
-│   ├── analysis.py          # Tabela de análises
-│   └── user.py              # Tabela de usuários
-├── schemas/
-│   ├── match.py             # Schemas de entrada/saída
-│   ├── analysis.py
-│   └── user.py
-├── routers/
-│   ├── auth.py              # /auth — registro e login
-│   ├── matches.py           # /matches — CRUD de jogos
-│   ├── analysis.py          # /analysis — análises manuais
-│   └── daily_pick.py        # /daily-pick — pick e acumulador do dia
-├── services/
-│   ├── analysis_service.py  # Lógica Over/Under manual
-│   ├── bsd_service.py       # Integração BSD API
-│   ├── daily_pick_service.py# Seleção do pick e acumulador
-│   ├── scheduler_service.py # Agendador diário (9h)
-│   └── telegram_service.py  # Notificações Telegram
-├── database.py              # Configuração PostgreSQL + Settings
-└── main.py                  # Inicialização FastAPI + routers
-```
+### Pré-requisitos
 
----
+- Python 3.11+
+- PostgreSQL instalado e rodando
+- Conta no [Telegram](https://telegram.org) e um bot criado via [@BotFather](https://t.me/botfather)
 
-## ⚙️ Variáveis de ambiente
-
-Cria um arquivo `.env` na raiz do projeto:
-
-```env
-DATABASE_URL=postgresql://usuario:senha@localhost/sports_analysis
-SECRET_KEY=sua_chave_secreta
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-TELEGRAM_TOKEN=token_do_seu_bot
-TELEGRAM_CHAT_ID=seu_chat_id
-BSD_API_KEY=sua_chave_bsd
-```
-
----
-
-## ▶️ Como executar
+### 1. Clone o repositório
 
 ```bash
-# 1. Cria e ativa o ambiente virtual
+git clone https://github.com/pedroprogramador-x/sports-analysis-bot.git
+cd sports-analysis-bot
+```
+
+### 2. Crie e ative o ambiente virtual
+
+```bash
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Linux/Mac
 
-# 2. Instala as dependências
-pip install fastapi uvicorn sqlalchemy psycopg2-binary pydantic-settings
-pip install python-jose[cryptography] passlib[bcrypt] httpx APScheduler
+# Windows
+.venv\Scripts\activate
 
-# 3. Configura o .env com suas variáveis
+# Linux/macOS
+source .venv/bin/activate
+```
 
-# 4. Sobe o servidor
+### 3. Instale as dependências
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure as variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Edite o `.env` com seus dados:
+
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+SECRET_KEY=sua_chave_secreta
+TELEGRAM_BOT_TOKEN=seu_token_aqui
+TELEGRAM_CHAT_ID=seu_chat_id_aqui
+```
+
+### 5. Inicie o servidor
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-Acessa a documentação interativa em: `http://127.0.0.1:8000/docs`
+Acesse a documentação em: **http://localhost:8000/docs**
 
 ---
 
 ## 📡 Endpoints principais
 
-### 🔐 Auth
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/api/auth/register` | Registrar usuário |
-| POST | `/api/auth/login` | Login + retorna JWT |
+| Método | Rota | Descrição | Auth |
+|---|---|---|---|
+| POST | `/auth/register` | Cadastro de usuário | ❌ |
+| POST | `/auth/login` | Login e geração de token | ❌ |
+| GET | `/picks/today` | Picks do dia | ✅ |
+| GET | `/picks/conservative` | Pick conservador | ✅ |
+| GET | `/picks/aggressive` | Pick arrojado | ✅ |
+| GET | `/picks/accumulator` | Acumulador do dia | ✅ |
 
-### ⚽ Matches
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/api/matches/` | Criar jogo manualmente |
-| GET | `/api/matches/` | Listar jogos |
-
-### 📊 Analysis
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/api/analysis/{match_id}` | Gerar análise + notifica Telegram |
-| GET | `/api/analysis/{match_id}` | Buscar análises do jogo |
-| POST | `/api/analysis/{match_id}/notify` | Reenviar análise ao Telegram |
-
-### 🎯 Daily Pick
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/daily-pick/today` | Buscar pick do dia |
-| POST | `/api/daily-pick/today/notify` | Enviar pick ao Telegram |
-| POST | `/api/daily-pick/today/notify-acca` | Enviar acumulador ao Telegram |
-| POST | `/api/daily-pick/today/notify-all` | Enviar pick + acumulador |
+> Rotas protegidas exigem header: `Authorization: Bearer <token>`
 
 ---
 
-## 📱 Exemplo de notificação no Telegram
+## 📁 Estrutura do projeto
 
-**Pick simples:**
 ```
-🎯 PICK DO DIA
-────────────────────────────
-⚽ Manchester City vs Arsenal
-🏆 Premier League
-🕐 Horário: 2026-05-02T16:00:00
-
-📌 Mercado: Over 2.5 gols
-💰 Odd: 1.95
-📊 Probabilidade: 87.3%
-
-🟢 Confiança: Alta
-```
-
-**Acumulador:**
-```
-🎲 ACUMULADOR DO DIA — Odd ~4.12
-────────────────────────────
-
-1️⃣ Real Madrid vs Barcelona
-🏆 La Liga
-📌 Ambas marcam (BTTS) @ 1.95
-📊 Prob: 78.4%
-
-2️⃣ Bayern München vs Dortmund
-🏆 Bundesliga
-📌 Over 2.5 gols @ 2.11
-📊 Prob: 76.1%
-
-────────────────────────────
-💰 Odd total: 4.12
-🟡 Prob. combinada: 59.7%
+Sports_analysis_bot/
+├── app/
+│   ├── core/           # Configurações, segurança, banco
+│   ├── models/         # Modelos SQLAlchemy
+│   ├── services/       # Lógica de negócio
+│   │   ├── daily_pick_service.py
+│   │   └── telegram_service.py
+│   ├── routers/        # Endpoints FastAPI
+│   └── main.py
+├── .env.example
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-## 🗺 Roadmap
+## 🗺️ Roadmap
 
-- [x] V1 — Script terminal com lógica manual
-- [x] V2 — API REST + Swagger
-- [x] V3 — PostgreSQL + JWT + Telegram
-- [x] V4 — Dados reais (BSD API) + pick diário automático + acumulador
-- [ ] V4 Fase 2 — Cache Redis + histórico de acertos
-- [ ] V4 Fase 3 — Dashboard web com Chart.js
-- [ ] V4 Fase 4 — Deploy em produção (Railway)
+- [x] Fase 1 — Consumo da BSD API e lógica de picks
+- [x] Fase 2 — Autenticação JWT e sistema de usuários
+- [x] Fase 3 — Notificações automáticas via Telegram + APScheduler
+- [ ] Fase 4 — Deploy em produção (Railway)
+- [ ] Fase 5 — Interface web (React/Next.js)
 
 ---
 
 ## 👨‍💻 Autor
 
-**Pedro** — [@pedroprogramador-x](https://github.com/pedroprogramador-x)
+**Pedro Henrique**
+Estudante de Engenharia de Software | Estácio (2025–2028)
 
-Projeto desenvolvido para portfólio com foco em arquitetura profissional, boas práticas e evolução incremental por versões.
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=white)](https://linkedin.com/in/pedrohenriquecodes)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/pedroprogramador-x)
