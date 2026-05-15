@@ -13,6 +13,7 @@ MARKETS = [
     {"market": "Over 1.5 gols",       "odd_key": "odds_over_15", "prob_key": "prob_over_15"},
     {"market": "Under 2.5 gols",      "odd_key": "odds_under_25","prob_key": "prob_under_25"},
     {"market": "Ambas marcam (BTTS)", "odd_key": "odds_btts_yes","prob_key": "prob_btts_yes"},
+    {"market": "Empate",              "odd_key": "odds_draw",    "prob_key": "prob_draw"},
     {"market": "Vitória casa",         "odd_key": "odds_home",    "prob_key": "prob_home_win"},
     {"market": "Vitória fora",         "odd_key": "odds_away",    "prob_key": "prob_away_win"},
     {"market": "Over 3.5 gols",       "odd_key": "odds_over_35", "prob_key": "prob_over_35"},
@@ -115,10 +116,10 @@ def extract_best_value_bet(event: dict, prediction: dict | None,
         prob = float(prob)
         value = calculate_value(prob, odd)
 
-        # Ajusta valor pelo peso da liga e horário
-        adjusted_value = value * league_weight * time_penalty
+        adjusted_value = value * time_penalty
+        effective_min = min_value / league_weight
 
-        if adjusted_value >= min_value:
+        if adjusted_value >= effective_min:
             emoji, label = value_label(adjusted_value)
             candidates.append({
                 "market": m["market"],
