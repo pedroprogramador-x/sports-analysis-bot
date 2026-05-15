@@ -39,8 +39,18 @@ def run_daily_pick():
         logger.exception("Erro ao executar picks diários")
 
 
+def run_result_check():
+    from app.services.result_checker_service import update_pending_results
+    try:
+        summary = asyncio.run(update_pending_results())
+        logger.info("Resultados atualizados: %s", summary)
+    except Exception:
+        logger.exception("Erro ao verificar resultados pendentes")
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler(timezone="America/Fortaleza")
-    scheduler.add_job(run_daily_pick, "cron", hour=9, minute=0)
+    scheduler.add_job(run_daily_pick,    "cron", hour=9,  minute=0)
+    scheduler.add_job(run_result_check,  "cron", hour=23, minute=0)
     scheduler.start()
     return scheduler

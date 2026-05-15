@@ -94,6 +94,13 @@ def get_pending(db: Session = Depends(get_db)):
     ]
 
 
+@router.post("/check-results")
+async def check_results():
+    from app.services.result_checker_service import update_pending_results
+    summary = await update_pending_results()
+    return summary
+
+
 @router.patch("/{pick_id}/result")
 def update_result(pick_id: int, body: ResultUpdate, db: Session = Depends(get_db)):
     pick = db.query(PickHistory).filter(PickHistory.id == pick_id).first()
