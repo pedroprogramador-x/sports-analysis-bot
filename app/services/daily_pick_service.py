@@ -1,6 +1,9 @@
 import asyncio
+import logging
 from datetime import datetime
 from app.services.bsd_service import get_todays_events, get_event_predictions
+
+logger = logging.getLogger(__name__)
 
 # ── Value Bet — critérios ─────────────────────────────────────────
 MIN_VALUE = 0.05        # 5% de valor mínimo (conservador)
@@ -275,3 +278,48 @@ async def find_daily_acca(events: list[dict] | None = None) -> dict | None:
         "combined_probability": combined_prob,
         "combined_value": combined_value,
     }
+
+
+def save_picks_to_db(
+    conservative: dict | None,
+    bold: dict | None,
+    acca: dict | None,
+) -> None:
+    from app.database import SessionLocal
+    from app.models.pick_history import PickHistory
+
+    def _record(pick: dict, pick_type: str) -> PickHistory:
+        return PickHistory(
+            home_team=pick.get("home_team", ""),
+            away_team=pick.get("away_team", ""),
+            league=pick.get("league", ""),
+            kickoff=str(pick.get("kickoff", "")),
+            market=pick.get("market", ""),
+            odd=float(pick.get("odd", 0)),
+            probability=float(pick.get("probability", 0)),
+            value=float(pick.get("value", 0)),
+            pick_type=pick_type,
+            bsd_event_id=pick.get("event_id"),
+        )
+
+    records = []
+    if conservative:
+        records.append(_record(conservative, "conservative"))
+    if bold:
+        records.append(_record(bold, "bold"))
+    if acca:
+        for leg in acca.get("legs", []):
+            records.append(_record(leg, "acca_leg"))
+
+    if not records:
+        return
+
+    db = SessionLocal()
+    try:
+        db.add_all(records)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Erro ao salvar picks no banco")
+    finally:
+        db.close()

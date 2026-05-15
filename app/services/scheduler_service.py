@@ -6,6 +6,7 @@ from app.services.daily_pick_service import (
     find_conservative_pick,
     find_daily_pick,
     find_daily_acca,
+    save_picks_to_db,
 )
 from app.services.telegram_service import (
     send_conservative_pick_notification,
@@ -28,6 +29,7 @@ async def _run_all_picks():
     await send_conservative_pick_notification(conservative)
     await send_daily_pick_notification(pick)
     await send_daily_acca_notification(acca)
+    save_picks_to_db(conservative, pick, acca)
 
 
 def run_daily_pick():
