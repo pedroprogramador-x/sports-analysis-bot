@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from app.services.bsd_service import get_todays_events, get_event_predictions
 
@@ -10,7 +11,7 @@ VERY_STRONG_VALUE = 0.15 # 15% de valor (muito forte)
 MARKETS = [
     {"market": "Over 2.5 gols",       "odd_key": "odds_over_25", "prob_key": "prob_over_25"},
     {"market": "Over 1.5 gols",       "odd_key": "odds_over_15", "prob_key": "prob_over_15"},
-    {"market": "Under 2.5 gols",      "odd_key": "odds_under_25","prob_key": "prob_over_25"},
+    {"market": "Under 2.5 gols",      "odd_key": "odds_under_25","prob_key": "prob_under_25"},
     {"market": "Ambas marcam (BTTS)", "odd_key": "odds_btts_yes","prob_key": "prob_btts_yes"},
     {"market": "Vitória casa",         "odd_key": "odds_home",    "prob_key": "prob_home_win"},
     {"market": "Vitória fora",         "odd_key": "odds_away",    "prob_key": "prob_away_win"},
@@ -153,14 +154,21 @@ def build_event_pick(event: dict, market: dict) -> dict:
 
 # ── Picks públicos ────────────────────────────────────────────────
 
-async def find_conservative_pick() -> dict | None:
+async def find_conservative_pick(events: list[dict] | None = None) -> dict | None:
     """Value bet conservador — odd 1.30–1.75, valor mínimo 5%."""
-    events = await get_todays_events()
+    if events is None:
+        events = await get_todays_events()
+    if not events:
+        return None
+
+    predictions = await asyncio.gather(
+        *[get_event_predictions(e.get("id")) for e in events]
+    )
+
     best_pick = None
     best_value = 0
 
-    for event in events:
-        prediction = await get_event_predictions(event.get("id"))
+    for event, prediction in zip(events, predictions):
         market = extract_best_value_bet(
             event, prediction,
             min_value=MIN_VALUE,
@@ -174,14 +182,21 @@ async def find_conservative_pick() -> dict | None:
     return best_pick
 
 
-async def find_daily_pick() -> dict | None:
+async def find_daily_pick(events: list[dict] | None = None) -> dict | None:
     """Value bet arrojado — odd 1.75–3.00, valor mínimo 8%."""
-    events = await get_todays_events()
+    if events is None:
+        events = await get_todays_events()
+    if not events:
+        return None
+
+    predictions = await asyncio.gather(
+        *[get_event_predictions(e.get("id")) for e in events]
+    )
+
     best_pick = None
     best_value = 0
 
-    for event in events:
-        prediction = await get_event_predictions(event.get("id"))
+    for event, prediction in zip(events, predictions):
         market = extract_best_value_bet(
             event, prediction,
             min_value=0.08,
@@ -195,13 +210,19 @@ async def find_daily_pick() -> dict | None:
     return best_pick
 
 
-async def find_daily_acca() -> dict | None:
+async def find_daily_acca(events: list[dict] | None = None) -> dict | None:
     """Acumulador — 2 value bets com valor 5%+, odd total ~3.00-6.00."""
-    events = await get_todays_events()
-    candidates = []
+    if events is None:
+        events = await get_todays_events()
+    if not events:
+        return None
 
-    for event in events:
-        prediction = await get_event_predictions(event.get("id"))
+    predictions = await asyncio.gather(
+        *[get_event_predictions(e.get("id")) for e in events]
+    )
+
+    candidates = []
+    for event, prediction in zip(events, predictions):
         market = extract_best_value_bet(
             event, prediction,
             min_value=MIN_VALUE,

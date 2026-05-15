@@ -24,7 +24,7 @@ async def send_analysis_notification(
         f"  {conf_map[corners_confidence]} Confiança: *{corners_confidence}*\n"
         f"  📊 Diferença: `{corners_diff:+.2f}`"
     )
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
             json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
@@ -44,7 +44,7 @@ async def send_command_analysis(
         f"🥅 Gols: *{goals_suggestion}* ({goals_confidence})\n"
         f"🚩 Escanteios: *{corners_suggestion}* ({corners_confidence})"
     )
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
             json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
@@ -68,7 +68,7 @@ async def send_conservative_pick_notification(pick: dict | None) -> bool:
             f"📊 Prob. estimada: *{pick['probability']}%*\n"
             f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
             json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
@@ -92,7 +92,7 @@ async def send_daily_pick_notification(pick: dict | None) -> bool:
             f"📊 Prob. estimada: *{pick['probability']}%*\n"
             f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
             json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
@@ -124,7 +124,7 @@ async def send_daily_acca_notification(acca: dict | None) -> bool:
             f"📊 Prob. combinada: *{acca['combined_probability']}%*\n"
             f"🔢 Value total: *+{vc}%*"
         )
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
             json={"chat_id": settings.telegram_chat_id, "text": message, "parse_mode": "Markdown"}
