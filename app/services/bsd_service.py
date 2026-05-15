@@ -9,17 +9,20 @@ BSD_BASE = "https://sports.bzzoiro.com/api"
 async def get_todays_events() -> list[dict]:
     today = date.today().isoformat()
     headers = {"Authorization": f"Token {settings.bsd_api_key}"}
+    url = f"{BSD_BASE}/events/"
+    params: dict = {"date": today}
+    events: list[dict] = []
 
     async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.get(
-            f"{BSD_BASE}/events/",
-            headers=headers,
-            params={"date": today}
-        )
-        response.raise_for_status()
-        data = response.json()
+        while url and len(events) < 500:
+            response = await client.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            events.extend(data.get("results", []))
+            url = data.get("next")
+            params = {}
 
-    return data.get("results", [])
+    return events[:500]
 
 
 async def get_event_predictions(event_id: int) -> dict | None:

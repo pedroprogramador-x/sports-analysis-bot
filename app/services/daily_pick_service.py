@@ -61,6 +61,21 @@ def get_time_penalty(kickoff: str) -> float:
         return 1.0
 
 
+def get_injury_penalty(event: dict) -> float:
+    unavailable = event.get("unavailable_players")
+    if not unavailable or not isinstance(unavailable, dict):
+        return 1.0
+    count = 0
+    for side in ("home", "away"):
+        players = unavailable.get(side) or []
+        count += sum(1 for p in players if p.get("status") in ("injured", "doubtful"))
+    if count >= 3:
+        return 0.90
+    if count >= 1:
+        return 0.95
+    return 1.0
+
+
 def calculate_value(prob: float, odd: float) -> float:
     """
     Fórmula de Value Bet:
@@ -95,6 +110,7 @@ def extract_best_value_bet(event: dict, prediction: dict | None,
 
     league_weight = get_league_weight(event)
     time_penalty = get_time_penalty(event.get("event_date", ""))
+    injury_penalty = get_injury_penalty(event)
     candidates = []
 
     for m in MARKETS:
@@ -116,7 +132,7 @@ def extract_best_value_bet(event: dict, prediction: dict | None,
         prob = float(prob)
         value = calculate_value(prob, odd)
 
-        adjusted_value = value * time_penalty
+        adjusted_value = value * time_penalty * injury_penalty
         effective_min = min_value / league_weight
 
         if adjusted_value >= effective_min:
@@ -138,6 +154,13 @@ def extract_best_value_bet(event: dict, prediction: dict | None,
 
 def build_event_pick(event: dict, market: dict) -> dict:
     league = event.get("league")
+    ai_raw = event.get("ai_preview")
+    if isinstance(ai_raw, dict):
+        preview = (ai_raw.get("text") or "")[:150] or None
+    elif isinstance(ai_raw, str):
+        preview = ai_raw[:150] or None
+    else:
+        preview = None
     return {
         "event_id": event.get("id"),
         "home_team": event.get("home_team"),
@@ -150,6 +173,7 @@ def build_event_pick(event: dict, market: dict) -> dict:
         "value": market["value"],
         "value_label": market["value_label"],
         "value_emoji": market["value_emoji"],
+        "ai_preview": preview,
     }
 
 

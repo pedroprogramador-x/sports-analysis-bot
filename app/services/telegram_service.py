@@ -68,6 +68,8 @@ async def send_conservative_pick_notification(pick: dict | None) -> bool:
             f"📊 Prob. estimada: *{pick['probability']}%*\n"
             f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
+        if pick.get("ai_preview"):
+            message += f"\n\n📝 *Contexto:* {pick['ai_preview']}"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
@@ -92,6 +94,8 @@ async def send_daily_pick_notification(pick: dict | None) -> bool:
             f"📊 Prob. estimada: *{pick['probability']}%*\n"
             f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
+        if pick.get("ai_preview"):
+            message += f"\n\n📝 *Contexto:* {pick['ai_preview']}"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
