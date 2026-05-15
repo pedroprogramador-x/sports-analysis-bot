@@ -6,7 +6,8 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![JWT](https://img.shields.io/badge/Auth-JWT-black?style=flat-square&logo=jsonwebtokens)
-![Status](https://img.shields.io/badge/Status-Em%20desenvolvimento-yellow?style=flat-square)
+![Status](https://img.shields.io/badge/Status-Em%20produção-brightgreen?style=flat-square)
+![Railway](https://img.shields.io/badge/Deploy-Railway-0B0D0E?style=flat-square&logo=railway&logoColor=white)
 
 ---
 
@@ -45,25 +46,52 @@ Com base nesses dados, o sistema aplica a lógica de **value betting**: só reco
 | Dados esportivos | Bzzoiro Sports Data API |
 | Notificações | Telegram Bot API |
 | Ambiente | Python 3.11+ / venv |
+| Deploy | Railway (24h) |
 
 ---
 
-## 🚀 Como executar localmente
+## ☁️ Deploy em produção
 
-### Pré-requisitos
+O projeto está rodando **24 horas por dia** no [Railway](https://railway.app), com banco de dados PostgreSQL gerenciado pela própria plataforma.
+
+**URL de produção:** https://web-production-f1484.up.railway.app
+
+| Recurso | URL |
+|---|---|
+| API raiz | `GET /` |
+| Documentação Swagger | `/docs` |
+| Picks do dia | `GET /api/daily-pick/today` |
+
+> O agendador (APScheduler) sobe automaticamente junto com a aplicação e dispara os picks às 9h via Telegram.
+
+---
+
+## 🚀 Como executar
+
+### Opção A — Produção (sem instalação)
+
+Acesse diretamente a API em produção:
+
+```
+https://web-production-f1484.up.railway.app/docs
+```
+
+### Opção B — Local
+
+#### Pré-requisitos
 
 - Python 3.11+
 - PostgreSQL instalado e rodando
 - Conta no [Telegram](https://telegram.org) e um bot criado via [@BotFather](https://t.me/botfather)
 
-### 1. Clone o repositório
+#### 1. Clone o repositório
 
 ```bash
 git clone https://github.com/pedroprogramador-x/sports-analysis-bot.git
 cd sports-analysis-bot
 ```
 
-### 2. Crie e ative o ambiente virtual
+#### 2. Crie e ative o ambiente virtual
 
 ```bash
 python -m venv .venv
@@ -75,13 +103,13 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Instale as dependências
+#### 3. Instale as dependências
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure as variáveis de ambiente
+#### 4. Configure as variáveis de ambiente
 
 ```bash
 cp .env.example .env
@@ -96,7 +124,7 @@ TELEGRAM_BOT_TOKEN=seu_token_aqui
 TELEGRAM_CHAT_ID=seu_chat_id_aqui
 ```
 
-### 5. Inicie o servidor
+#### 5. Inicie o servidor
 
 ```bash
 uvicorn app.main:app --reload
@@ -145,7 +173,7 @@ Sports_analysis_bot/
 - [x] Fase 1 — Consumo da BSD API e lógica de picks
 - [x] Fase 2 — Autenticação JWT e sistema de usuários
 - [x] Fase 3 — Notificações automáticas via Telegram + APScheduler
-- [ ] Fase 4 — Deploy em produção (Railway)
+- [x] Fase 4 — Deploy em produção (Railway) — https://web-production-f1484.up.railway.app
 - [ ] Fase 5 — Interface web (React/Next.js)
 
 ---
