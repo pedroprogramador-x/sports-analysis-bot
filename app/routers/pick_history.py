@@ -121,6 +121,65 @@ async def check_results():
     }
 
 
+@router.post("/diag/compare-pages", status_code=202)
+async def diag_compare_pages():
+    """Pega page 1 e page 2 de /events/ manualmente e salva os primeiros
+    event_ids de cada como marker, pra ver se BSD retorna pages diferentes
+    do Railway."""
+    import asyncio
+    import logging
+    import httpx
+    from app.database import SessionLocal, get_settings
+    from app.models.pick_history import PickHistory
+
+    log = logging.getLogger(__name__)
+    settings_ = get_settings()
+
+    def _save(label, info):
+        db = SessionLocal()
+        db.add(PickHistory(
+            home_team="DIAG", away_team=label, league="diagnostic",
+            kickoff=info, market="cmp-pages", odd=1.0, probability=0.0,
+            value=0.0, pick_type="diagnostic", bsd_event_id=None,
+        ))
+        db.commit()
+        db.close()
+
+    async def _job():
+        headers = {"Authorization": f"Token {settings_.bsd_api_key}"}
+        try:
+            # PAGE 1
+            async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=10.0)) as c:
+                r1 = await c.get(
+                    "https://sports.bzzoiro.com/api/events/",
+                    headers=headers,
+                    params={"date": datetime.utcnow().date().isoformat()},
+                )
+                d1 = r1.json()
+            ids1 = [e.get("id") for e in d1.get("results", [])[:5]]
+            next1 = d1.get("next") or "NULL"
+            _save("PAGE1", f"ids={ids1}_next={next1[:80] if isinstance(next1,str) else next1}")
+
+            # PAGE 2 (usa next URL)
+            if isinstance(next1, str) and next1:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=10.0)) as c:
+                    r2 = await c.get(next1, headers=headers)
+                    d2 = r2.json()
+                ids2 = [e.get("id") for e in d2.get("results", [])[:5]]
+                next2 = d2.get("next") or "NULL"
+                _save("PAGE2", f"ids={ids2}_next={next2[:80] if isinstance(next2,str) else next2}")
+            else:
+                _save("PAGE2", "skipped_no_next")
+        except Exception as e:
+            log.exception("compare-pages falhou")
+            _save("ERROR", f"{type(e).__name__}_{str(e)[:100]}")
+
+    task = asyncio.create_task(_job())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return {"status": "spawned"}
+
+
 @router.post("/diag/full-pagination", status_code=202)
 async def diag_full_pagination():
     """Diagnostico: BG task pagina events + predictions completos e salva
