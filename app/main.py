@@ -1,9 +1,15 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.database import engine, Base, get_settings
 from app.routers import matches, analysis, auth
 from app.routers import daily_pick, pick_history
 from app.services.scheduler_service import start_scheduler
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 settings = get_settings()
 
