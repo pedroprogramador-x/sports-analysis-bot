@@ -19,35 +19,39 @@ async def get_todays_events() -> list[dict]:
     duplicates = 0
     pages_ok = 0
     pages_fail = 0
+    MAX_PAGES = 20  # guarda contra loop infinito caso BSD retorne next repetido
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        while url and len(events) < 500:
-            try:
+    while url and len(events) < 500 and (pages_ok + pages_fail) < MAX_PAGES:
+        # Cliente fresco por pagina evita problemas de connection pool no Railway
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(30.0, connect=10.0)
+            ) as client:
                 response = await client.get(url, headers=headers, params=params)
                 response.raise_for_status()
                 data = response.json()
-            except (httpx.HTTPError, httpx.TimeoutException) as e:
-                pages_fail += 1
-                logger.warning(
-                    "BSD /events/ pagina falhou (%s) — interrompendo com %d jogos parciais",
-                    type(e).__name__, len(events),
-                )
-                break
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            pages_fail += 1
+            logger.warning(
+                "BSD /events/ pagina %d falhou (%s) — interrompendo com %d parciais",
+                pages_ok + pages_fail, type(e).__name__, len(events),
+            )
+            break
 
-            pages_ok += 1
-            if total_available is None:
-                total_available = data.get("count")
-            for ev in data.get("results", []):
-                eid = ev.get("id")
-                if eid is None:
-                    continue
-                if eid in seen_ids:
-                    duplicates += 1
-                    continue
-                seen_ids.add(eid)
-                events.append(ev)
-            url = data.get("next")
-            params = {}
+        pages_ok += 1
+        if total_available is None:
+            total_available = data.get("count")
+        for ev in data.get("results", []):
+            eid = ev.get("id")
+            if eid is None:
+                continue
+            if eid in seen_ids:
+                duplicates += 1
+                continue
+            seen_ids.add(eid)
+            events.append(ev)
+        url = data.get("next")
+        params = {}
 
     logger.info(
         "BSD /events/ %s: %d jogos unicos (%d dups), %d/%d paginas, %s disponiveis",
@@ -89,38 +93,42 @@ async def get_all_predictions_today() -> dict[int, dict]:
 
     pages_ok = 0
     pages_fail = 0
+    MAX_PAGES = 20
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        while url and len(predictions) < 1000:
-            try:
+    while url and len(predictions) < 1000 and (pages_ok + pages_fail) < MAX_PAGES:
+        # Cliente fresco por pagina
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(30.0, connect=10.0)
+            ) as client:
                 response = await client.get(url, headers=headers, params=params)
                 if response.status_code != 200:
                     logger.warning(
-                        "BSD /predictions/ retornou HTTP %d — interrompendo com %d parciais",
+                        "BSD /predictions/ HTTP %d — interrompendo com %d parciais",
                         response.status_code, len(predictions),
                     )
                     pages_fail += 1
                     break
                 data = response.json()
-            except (httpx.HTTPError, httpx.TimeoutException) as e:
-                pages_fail += 1
-                logger.warning(
-                    "BSD /predictions/ pagina falhou (%s) — interrompendo com %d parciais",
-                    type(e).__name__, len(predictions),
-                )
-                break
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            pages_fail += 1
+            logger.warning(
+                "BSD /predictions/ pagina %d falhou (%s) — interrompendo com %d parciais",
+                pages_ok + pages_fail, type(e).__name__, len(predictions),
+            )
+            break
 
-            pages_ok += 1
-            if total_available is None:
-                total_available = data.get("count")
-            for pred in data.get("results", []):
-                ev = pred.get("event")
-                eid = ev.get("id") if isinstance(ev, dict) else ev
-                if eid is None or eid in predictions:
-                    continue
-                predictions[eid] = _augment_prediction(pred)
-            url = data.get("next")
-            params = {}
+        pages_ok += 1
+        if total_available is None:
+            total_available = data.get("count")
+        for pred in data.get("results", []):
+            ev = pred.get("event")
+            eid = ev.get("id") if isinstance(ev, dict) else ev
+            if eid is None or eid in predictions:
+                continue
+            predictions[eid] = _augment_prediction(pred)
+        url = data.get("next")
+        params = {}
 
     logger.info(
         "BSD /predictions/: %d predicoes indexadas, %d/%d paginas, %s disponiveis",
