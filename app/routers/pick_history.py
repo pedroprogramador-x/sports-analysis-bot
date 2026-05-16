@@ -8,6 +8,9 @@ from app.models.pick_history import PickHistory
 
 router = APIRouter(prefix="/picks", tags=["pick-history"])
 
+# Mantém referencia forte aos background tasks para evitar GC
+_background_tasks: set = set()
+
 
 class ResultUpdate(BaseModel):
     result: Literal["win", "loss", "void"]
@@ -97,18 +100,21 @@ def get_pending(db: Session = Depends(get_db)):
 async def _check_results_job():
     import logging
     logger = logging.getLogger(__name__)
+    logger.info("BG /check-results iniciado")
     try:
         from app.services.result_checker_service import update_pending_results
         summary = await update_pending_results()
-        logger.info("Background check-results: %s", summary)
+        logger.info("BG /check-results concluido: %s", summary)
     except Exception:
-        logger.exception("Erro em background check-results")
+        logger.exception("BG /check-results falhou")
 
 
 @router.post("/check-results", status_code=202)
 async def check_results():
     import asyncio
-    asyncio.create_task(_check_results_job())
+    task = asyncio.create_task(_check_results_job())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return {
         "status": "started",
         "message": "Verificacao em background — resultado em /api/picks/history",
