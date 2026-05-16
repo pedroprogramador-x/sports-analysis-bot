@@ -1,8 +1,64 @@
+import logging
+from datetime import datetime
+
 import httpx
+import pytz
+
 from app.database import get_settings
 
 settings = get_settings()
 TELEGRAM_URL = f"https://api.telegram.org/bot{settings.telegram_token}"
+logger = logging.getLogger(__name__)
+
+_DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+_BR_TZ = pytz.timezone("America/Sao_Paulo")
+
+
+def format_kickoff(kickoff_str: str) -> str:
+    """Converte ISO timestamp para 'Dom 17/05 às 00:30' no horário de Brasília."""
+    try:
+        dt = datetime.fromisoformat(kickoff_str)
+        dt_br = dt.astimezone(_BR_TZ)
+        dia = _DIAS[dt_br.weekday()]
+        return f"{dia} {dt_br.strftime('%d/%m às %H:%M')}"
+    except Exception:
+        return kickoff_str
+
+
+async def translate_to_portuguese(text: str) -> str:
+    """Traduz texto para português BR via Anthropic claude-haiku-4-5-20251001."""
+    if not text or not settings.anthropic_api_key:
+        return text
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": settings.anthropic_api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 300,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Traduza para português brasileiro de forma natural e concisa, "
+                                "mantendo termos técnicos de futebol. "
+                                "Retorne apenas o texto traduzido, sem explicações:\n\n"
+                                + text
+                            ),
+                        }
+                    ],
+                },
+            )
+            r.raise_for_status()
+            return r.json()["content"][0]["text"].strip()
+    except Exception:
+        logger.warning("translate_to_portuguese falhou — retornando original", exc_info=True)
+        return text
 
 
 async def send_analysis_notification(
@@ -62,14 +118,15 @@ async def send_conservative_pick_notification(pick: dict | None) -> bool:
             f"{'─' * 28}\n"
             f"⚽ *{pick['home_team']} vs {pick['away_team']}*\n"
             f"🏆 {pick['league']}\n"
-            f"🕐 {pick['kickoff']}\n\n"
+            f"🕐 {format_kickoff(pick['kickoff'])}\n\n"
             f"📌 Mercado: *{pick['market']}*\n"
             f"💰 Odd: *{pick['odd']}*\n"
             f"📊 Prob. estimada: *{pick['probability']}%*\n"
             f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
         if pick.get("ai_preview"):
-            message += f"\n\n📝 *Contexto:* {pick['ai_preview']}"
+            contexto = await translate_to_portuguese(pick["ai_preview"])
+            message += f"\n\n📝 *Contexto:* {contexto}"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
@@ -88,14 +145,15 @@ async def send_daily_pick_notification(pick: dict | None) -> bool:
             f"{'─' * 28}\n"
             f"⚽ *{pick['home_team']} vs {pick['away_team']}*\n"
             f"🏆 {pick['league']}\n"
-            f"🕐 {pick['kickoff']}\n\n"
+            f"🕐 {format_kickoff(pick['kickoff'])}\n\n"
             f"📌 Mercado: *{pick['market']}*\n"
             f"💰 Odd: *{pick['odd']}*\n"
             f"📊 Prob. estimada: *{pick['probability']}%*\n"
             f"{pick['value_emoji']} Value: *+{value_pct}%* ({pick['value_label']})"
         )
         if pick.get("ai_preview"):
-            message += f"\n\n📝 *Contexto:* {pick['ai_preview']}"
+            contexto = await translate_to_portuguese(pick["ai_preview"])
+            message += f"\n\n📝 *Contexto:* {contexto}"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"{TELEGRAM_URL}/sendMessage",
