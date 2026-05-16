@@ -121,6 +121,52 @@ async def check_results():
     }
 
 
+@router.post("/diag/spawn-bg", status_code=202)
+async def diag_spawn_bg():
+    """Diagnostico: spawn background task que dorme 10s e escreve marker no banco.
+
+    Se aparecer pick com pick_type='diagnostic' em /history apos ~15s,
+    o fire-and-forget pattern funciona no Railway e o problema esta no
+    fluxo BSD. Se nao aparecer, asyncio.create_task nao sobrevive ao
+    fim da request handler no ambiente Railway.
+    """
+    import asyncio
+    import logging
+    from app.database import SessionLocal
+    from app.models.pick_history import PickHistory
+
+    log = logging.getLogger(__name__)
+
+    async def _job():
+        log.info("DIAG bg job iniciado")
+        await asyncio.sleep(10)
+        log.info("DIAG bg apos sleep 10s, escrevendo marker no banco")
+        try:
+            db = SessionLocal()
+            db.add(PickHistory(
+                home_team="DIAG",
+                away_team="TEST",
+                league="diagnostic",
+                kickoff=datetime.utcnow().isoformat(),
+                market="diag-marker",
+                odd=1.0,
+                probability=0.0,
+                value=0.0,
+                pick_type="diagnostic",
+                bsd_event_id=None,
+            ))
+            db.commit()
+            db.close()
+            log.info("DIAG bg escreveu marker com sucesso")
+        except Exception:
+            log.exception("DIAG bg falhou no write")
+
+    task = asyncio.create_task(_job())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return {"status": "spawned", "wait_seconds": 15, "check": "/api/picks/history"}
+
+
 @router.patch("/{pick_id}/result")
 def update_result(pick_id: int, body: ResultUpdate, db: Session = Depends(get_db)):
     pick = db.query(PickHistory).filter(PickHistory.id == pick_id).first()
