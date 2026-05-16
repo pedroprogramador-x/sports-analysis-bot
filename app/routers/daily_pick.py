@@ -1,11 +1,18 @@
+import asyncio
+import logging
 from fastapi import APIRouter
-from app.services.daily_pick_service import find_daily_pick, find_daily_acca
+from app.services.daily_pick_service import (
+    find_daily_pick,
+    find_daily_acca,
+    save_picks_to_db,
+)
 from app.services.telegram_service import (
     send_daily_pick_notification,
-    send_daily_acca_notification
+    send_daily_acca_notification,
 )
 
 router = APIRouter(prefix="/daily-pick", tags=["daily-pick"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/today")
@@ -17,51 +24,91 @@ async def get_todays_pick():
     return pick
 
 
-@router.post("/today/notify")
+# ── Background jobs ─────────────────────────────────────────────
+
+async def _notify_pick_job():
+    try:
+        pick = await find_daily_pick()
+        await send_daily_pick_notification(pick)
+        save_picks_to_db(None, pick, None)
+        logger.info("Background /today/notify concluido (pick=%s)", bool(pick))
+    except Exception:
+        logger.exception("Erro em background /today/notify")
+
+
+async def _notify_acca_job():
+    try:
+        acca = await find_daily_acca()
+        await send_daily_acca_notification(acca)
+        save_picks_to_db(None, None, acca)
+        logger.info("Background /today/notify-acca concluido (acca=%s)", bool(acca))
+    except Exception:
+        logger.exception("Erro em background /today/notify-acca")
+
+
+async def _notify_all_job():
+    try:
+        from app.services.bsd_service import (
+            get_todays_events,
+            get_all_predictions_today,
+        )
+        from app.services.daily_pick_service import find_conservative_pick
+        from app.services.telegram_service import send_conservative_pick_notification
+
+        events, predictions = await asyncio.gather(
+            get_todays_events(),
+            get_all_predictions_today(),
+        )
+
+        conservative, pick, acca = await asyncio.gather(
+            find_conservative_pick(events, predictions),
+            find_daily_pick(events, predictions),
+            find_daily_acca(events, predictions),
+        )
+
+        await send_conservative_pick_notification(conservative)
+        await send_daily_pick_notification(pick)
+        await send_daily_acca_notification(acca)
+        save_picks_to_db(conservative, pick, acca)
+        logger.info(
+            "Background /today/notify-all concluido (cons=%s bold=%s acca=%s)",
+            bool(conservative), bool(pick), bool(acca),
+        )
+    except Exception:
+        logger.exception("Erro em background /today/notify-all")
+
+
+# ── Endpoints ───────────────────────────────────────────────────
+
+@router.post("/today/notify", status_code=202)
 async def notify_todays_pick():
-    """Busca o pick simples do dia e manda no Telegram."""
-    pick = await find_daily_pick()
-    await send_daily_pick_notification(pick)
-    return {"sent": True, "pick": pick}
-
-
-@router.post("/today/notify-acca")
-async def notify_todays_acca():
-    """Busca o acumulador do dia e manda no Telegram."""
-    acca = await find_daily_acca()
-    await send_daily_acca_notification(acca)
-    return {"sent": True, "acca": acca}
-
-
-@router.post("/today/notify-all")
-async def notify_all():
-    """Manda pick conservador + arrojado + acumulador no Telegram."""
-    import asyncio
-    from app.services.bsd_service import get_todays_events, get_all_predictions_today
-    from app.services.daily_pick_service import find_conservative_pick
-    from app.services.telegram_service import send_conservative_pick_notification
-
-    events, predictions = await asyncio.gather(
-        get_todays_events(),
-        get_all_predictions_today(),
-    )
-
-    conservative, pick, acca = await asyncio.gather(
-        find_conservative_pick(events, predictions),
-        find_daily_pick(events, predictions),
-        find_daily_acca(events, predictions),
-    )
-
-    await send_conservative_pick_notification(conservative)
-    await send_daily_pick_notification(pick)
-    await send_daily_acca_notification(acca)
-
+    """Dispara em background a geracao do pick arrojado + envio Telegram + save DB."""
+    asyncio.create_task(_notify_pick_job())
     return {
-        "sent": True,
-        "conservative": conservative,
-        "bold_pick": pick,
-        "acca": acca
+        "status": "started",
+        "message": "Pick arrojado em background — confira o Telegram e /api/picks/history em ~1min",
     }
+
+
+@router.post("/today/notify-acca", status_code=202)
+async def notify_todays_acca():
+    """Dispara em background a geracao do acumulador + envio Telegram + save DB."""
+    asyncio.create_task(_notify_acca_job())
+    return {
+        "status": "started",
+        "message": "Acumulador em background — confira o Telegram e /api/picks/history em ~1min",
+    }
+
+
+@router.post("/today/notify-all", status_code=202)
+async def notify_all():
+    """Dispara em background os 3 picks com fetch unico de events+predictions."""
+    asyncio.create_task(_notify_all_job())
+    return {
+        "status": "started",
+        "message": "3 picks em background — confira o Telegram e /api/picks/history em ~1min",
+    }
+
 
 @router.get("/debug")
 async def debug_todays_events():
@@ -95,7 +142,7 @@ async def debug_prediction():
         results.append({
             "jogo": f"{event.get('home_team')} vs {event.get('away_team')}",
             "odds_over_25": event.get("odds_over_25"),
-            "odds_bttuvicorn app.main:app --reloads_yes": event.get("odds_btts_yes"),
+            "odds_btts_yes": event.get("odds_btts_yes"),
             "predicao_completa": pred
         })
     return results

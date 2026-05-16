@@ -17,12 +17,24 @@ async def get_todays_events() -> list[dict]:
     total_available: int | None = None
     seen_ids: set = set()
     duplicates = 0
+    pages_ok = 0
+    pages_fail = 0
 
     async with httpx.AsyncClient(timeout=60) as client:
         while url and len(events) < 500:
-            response = await client.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
+            try:
+                response = await client.get(url, headers=headers, params=params)
+                response.raise_for_status()
+                data = response.json()
+            except (httpx.HTTPError, httpx.TimeoutException) as e:
+                pages_fail += 1
+                logger.warning(
+                    "BSD /events/ pagina falhou (%s) — interrompendo com %d jogos parciais",
+                    type(e).__name__, len(events),
+                )
+                break
+
+            pages_ok += 1
             if total_available is None:
                 total_available = data.get("count")
             for ev in data.get("results", []):
@@ -38,8 +50,8 @@ async def get_todays_events() -> list[dict]:
             params = {}
 
     logger.info(
-        "BSD /events/ %s: %d jogos únicos de %s disponíveis (%d duplicatas removidas)",
-        today, len(events), total_available, duplicates,
+        "BSD /events/ %s: %d jogos unicos (%d dups), %d/%d paginas, %s disponiveis",
+        today, len(events), duplicates, pages_ok, pages_ok + pages_fail, total_available,
     )
     return events[:500]
 
@@ -75,33 +87,44 @@ async def get_all_predictions_today() -> dict[int, dict]:
     predictions: dict[int, dict] = {}
     total_available: int | None = None
 
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            while url and len(predictions) < 1000:
+    pages_ok = 0
+    pages_fail = 0
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        while url and len(predictions) < 1000:
+            try:
                 response = await client.get(url, headers=headers, params=params)
                 if response.status_code != 200:
                     logger.warning(
-                        "BSD /predictions/ retornou HTTP %d",
-                        response.status_code,
+                        "BSD /predictions/ retornou HTTP %d — interrompendo com %d parciais",
+                        response.status_code, len(predictions),
                     )
+                    pages_fail += 1
                     break
                 data = response.json()
-                if total_available is None:
-                    total_available = data.get("count")
-                for pred in data.get("results", []):
-                    ev = pred.get("event")
-                    eid = ev.get("id") if isinstance(ev, dict) else ev
-                    if eid is None or eid in predictions:
-                        continue
-                    predictions[eid] = _augment_prediction(pred)
-                url = data.get("next")
-                params = {}
-    except (httpx.TimeoutException, httpx.HTTPError) as e:
-        logger.warning("BSD /predictions/ falhou: %s", type(e).__name__)
+            except (httpx.HTTPError, httpx.TimeoutException) as e:
+                pages_fail += 1
+                logger.warning(
+                    "BSD /predictions/ pagina falhou (%s) — interrompendo com %d parciais",
+                    type(e).__name__, len(predictions),
+                )
+                break
+
+            pages_ok += 1
+            if total_available is None:
+                total_available = data.get("count")
+            for pred in data.get("results", []):
+                ev = pred.get("event")
+                eid = ev.get("id") if isinstance(ev, dict) else ev
+                if eid is None or eid in predictions:
+                    continue
+                predictions[eid] = _augment_prediction(pred)
+            url = data.get("next")
+            params = {}
 
     logger.info(
-        "BSD /predictions/: %d predições indexadas de %s disponíveis",
-        len(predictions), total_available,
+        "BSD /predictions/: %d predicoes indexadas, %d/%d paginas, %s disponiveis",
+        len(predictions), pages_ok, pages_ok + pages_fail, total_available,
     )
     return predictions
 

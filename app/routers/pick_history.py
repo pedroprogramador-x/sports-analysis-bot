@@ -94,11 +94,25 @@ def get_pending(db: Session = Depends(get_db)):
     ]
 
 
-@router.post("/check-results")
+async def _check_results_job():
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from app.services.result_checker_service import update_pending_results
+        summary = await update_pending_results()
+        logger.info("Background check-results: %s", summary)
+    except Exception:
+        logger.exception("Erro em background check-results")
+
+
+@router.post("/check-results", status_code=202)
 async def check_results():
-    from app.services.result_checker_service import update_pending_results
-    summary = await update_pending_results()
-    return summary
+    import asyncio
+    asyncio.create_task(_check_results_job())
+    return {
+        "status": "started",
+        "message": "Verificacao em background — resultado em /api/picks/history",
+    }
 
 
 @router.patch("/{pick_id}/result")
