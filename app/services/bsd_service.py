@@ -35,28 +35,57 @@ async def get_todays_events() -> list[dict]:
 
 
 async def get_event_predictions(event_id: int) -> dict | None:
+    """
+    Busca a predição do CatBoost para um evento.
+
+    A BSD descontinuou GET /predictions/{event_id}/ (404) e agora expõe
+    GET /predictions/?event={event_id}, com resposta paginada em
+    {count, next, previous, results: [...]}. A predição vem em results[0].
+
+    Os campos prob_under_15/25/35 não existem mais na resposta e são
+    derivados como 100 - prob_over_X (complementares).
+    """
     headers = {"Authorization": f"Token {settings.bsd_api_key}"}
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.get(
-                f"{BSD_BASE}/predictions/{event_id}/",
-                headers=headers
+                f"{BSD_BASE}/predictions/",
+                headers=headers,
+                params={"event": event_id},
             )
-            # 404 = sem predição, 502/503 = instabilidade BSD
-            # Em qualquer erro retorna None sem quebrar o fluxo
             if response.status_code != 200:
                 logger.warning(
-                    "BSD /predictions/%s retornou HTTP %d",
+                    "BSD /predictions/?event=%s retornou HTTP %d",
                     event_id, response.status_code,
                 )
                 return None
 
-            return response.json()
+            data = response.json()
+            results = data.get("results") or []
+            if not results:
+                return None
+
+            prediction = results[0]
+
+            # Deriva prob_under_X a partir de prob_over_X (eventos complementares)
+            for over_key, under_key in (
+                ("prob_over_15", "prob_under_15"),
+                ("prob_over_25", "prob_under_25"),
+                ("prob_over_35", "prob_under_35"),
+            ):
+                over = prediction.get(over_key)
+                if over is not None and under_key not in prediction:
+                    try:
+                        prediction[under_key] = 100 - float(over)
+                    except (TypeError, ValueError):
+                        pass
+
+            return prediction
 
     except (httpx.TimeoutException, httpx.HTTPError) as e:
         logger.warning(
-            "BSD /predictions/%s falhou: %s",
+            "BSD /predictions/?event=%s falhou: %s",
             event_id, type(e).__name__,
         )
         return None
