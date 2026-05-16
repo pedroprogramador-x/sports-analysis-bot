@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.services.bsd_service import get_todays_events
 from app.services.daily_pick_service import (
@@ -33,6 +34,7 @@ async def _run_all_picks():
 
 
 def run_daily_pick():
+    logger.info("Job 'run_daily_pick' disparado em %s", datetime.now().isoformat())
     try:
         asyncio.run(_run_all_picks())
     except Exception:
@@ -41,6 +43,7 @@ def run_daily_pick():
 
 def run_result_check():
     from app.services.result_checker_service import update_pending_results
+    logger.info("Job 'run_result_check' disparado em %s", datetime.now().isoformat())
     try:
         summary = asyncio.run(update_pending_results())
         logger.info("Resultados atualizados: %s", summary)
