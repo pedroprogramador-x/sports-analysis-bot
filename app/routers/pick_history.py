@@ -121,6 +121,66 @@ async def check_results():
     }
 
 
+@router.post("/diag/bsd-ping", status_code=202)
+async def diag_bsd_ping():
+    """Diagnostico: BG task hita BSD com 1 chamada e salva marker no banco
+    com o status real (HTTP code, tempo, count). Isola se Railway -> BSD
+    funciona em background, sem paginar nada."""
+    import asyncio
+    import logging
+    import time
+    import httpx
+    from app.database import SessionLocal, get_settings
+    from app.models.pick_history import PickHistory
+
+    log = logging.getLogger(__name__)
+    settings = get_settings()
+
+    async def _job():
+        log.info("DIAG bsd-ping iniciado")
+        t0 = time.time()
+        marker_text = "FAIL"
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                r = await client.get(
+                    "https://sports.bzzoiro.com/api/events/",
+                    headers={"Authorization": f"Token {settings.bsd_api_key}"},
+                    params={"date": datetime.utcnow().date().isoformat()},
+                )
+                elapsed = time.time() - t0
+                count = r.json().get("count") if r.status_code == 200 else None
+                marker_text = f"HTTP{r.status_code}_{elapsed:.1f}s_count{count}"
+                log.info("DIAG bsd-ping: %s", marker_text)
+        except Exception as e:
+            elapsed = time.time() - t0
+            marker_text = f"EXC_{type(e).__name__}_{elapsed:.1f}s"
+            log.exception("DIAG bsd-ping falhou")
+        # Grava resultado no banco
+        try:
+            db = SessionLocal()
+            db.add(PickHistory(
+                home_team="DIAG",
+                away_team="BSD-PING",
+                league="diagnostic",
+                kickoff=marker_text,
+                market="bsd-ping",
+                odd=1.0,
+                probability=0.0,
+                value=0.0,
+                pick_type="diagnostic",
+                bsd_event_id=None,
+            ))
+            db.commit()
+            db.close()
+        except Exception:
+            log.exception("DIAG bsd-ping nao escreveu no banco")
+
+    task = asyncio.create_task(_job())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return {"status": "spawned", "check": "/api/picks/history em ~90s"}
+
+
 @router.post("/diag/spawn-bg", status_code=202)
 async def diag_spawn_bg():
     """Diagnostico: spawn background task que dorme 10s e escreve marker no banco.
