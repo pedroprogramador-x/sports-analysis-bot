@@ -1,4 +1,5 @@
 import logging
+import time
 import httpx
 from datetime import date
 from app.database import get_settings
@@ -23,9 +24,11 @@ async def get_todays_events() -> list[dict]:
 
     while url and len(events) < 500 and (pages_ok + pages_fail) < MAX_PAGES:
         # Cliente fresco por pagina evita problemas de connection pool no Railway
+        page_num = pages_ok + pages_fail + 1
+        t0 = time.time()
         try:
             async with httpx.AsyncClient(
-                timeout=httpx.Timeout(30.0, connect=10.0)
+                timeout=httpx.Timeout(90.0, connect=10.0)
             ) as client:
                 response = await client.get(url, headers=headers, params=params)
                 response.raise_for_status()
@@ -33,11 +36,12 @@ async def get_todays_events() -> list[dict]:
         except (httpx.HTTPError, httpx.TimeoutException) as e:
             pages_fail += 1
             logger.warning(
-                "BSD /events/ pagina %d falhou (%s) — interrompendo com %d parciais",
-                pages_ok + pages_fail, type(e).__name__, len(events),
+                "BSD /events/ pagina %d falhou em %.1fs (%s) — interrompendo com %d parciais",
+                page_num, time.time() - t0, type(e).__name__, len(events),
             )
             break
 
+        logger.info("BSD /events/ pagina %d OK em %.1fs", page_num, time.time() - t0)
         pages_ok += 1
         if total_available is None:
             total_available = data.get("count")
@@ -97,15 +101,17 @@ async def get_all_predictions_today() -> dict[int, dict]:
 
     while url and len(predictions) < 1000 and (pages_ok + pages_fail) < MAX_PAGES:
         # Cliente fresco por pagina
+        page_num = pages_ok + pages_fail + 1
+        t0 = time.time()
         try:
             async with httpx.AsyncClient(
-                timeout=httpx.Timeout(30.0, connect=10.0)
+                timeout=httpx.Timeout(90.0, connect=10.0)
             ) as client:
                 response = await client.get(url, headers=headers, params=params)
                 if response.status_code != 200:
                     logger.warning(
-                        "BSD /predictions/ HTTP %d — interrompendo com %d parciais",
-                        response.status_code, len(predictions),
+                        "BSD /predictions/ pagina %d HTTP %d em %.1fs — interrompendo com %d parciais",
+                        page_num, response.status_code, time.time() - t0, len(predictions),
                     )
                     pages_fail += 1
                     break
@@ -113,11 +119,12 @@ async def get_all_predictions_today() -> dict[int, dict]:
         except (httpx.HTTPError, httpx.TimeoutException) as e:
             pages_fail += 1
             logger.warning(
-                "BSD /predictions/ pagina %d falhou (%s) — interrompendo com %d parciais",
-                pages_ok + pages_fail, type(e).__name__, len(predictions),
+                "BSD /predictions/ pagina %d falhou em %.1fs (%s) — interrompendo com %d parciais",
+                page_num, time.time() - t0, type(e).__name__, len(predictions),
             )
             break
 
+        logger.info("BSD /predictions/ pagina %d OK em %.1fs", page_num, time.time() - t0)
         pages_ok += 1
         if total_available is None:
             total_available = data.get("count")
