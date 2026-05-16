@@ -264,7 +264,16 @@ async def find_daily_acca(events: list[dict] | None = None) -> dict | None:
         return None
 
     candidates.sort(key=lambda x: x["value"], reverse=True)
-    leg1, leg2 = candidates[0], candidates[1]
+    leg1 = candidates[0]
+    # leg2 precisa ser de outro evento — bookmakers nao aceitam acca
+    # com dois mercados do mesmo jogo, e a prob combinada precisa de
+    # eventos independentes
+    leg2 = next(
+        (c for c in candidates[1:] if c["event_id"] != leg1["event_id"]),
+        None,
+    )
+    if leg2 is None:
+        return None
 
     total_odd = round(leg1["odd"] * leg2["odd"], 2)
     combined_prob = round(

@@ -15,6 +15,8 @@ async def get_todays_events() -> list[dict]:
     params: dict = {"date": today}
     events: list[dict] = []
     total_available: int | None = None
+    seen_ids: set = set()
+    duplicates = 0
 
     async with httpx.AsyncClient(timeout=60) as client:
         while url and len(events) < 500:
@@ -23,13 +25,21 @@ async def get_todays_events() -> list[dict]:
             data = response.json()
             if total_available is None:
                 total_available = data.get("count")
-            events.extend(data.get("results", []))
+            for ev in data.get("results", []):
+                eid = ev.get("id")
+                if eid is None:
+                    continue
+                if eid in seen_ids:
+                    duplicates += 1
+                    continue
+                seen_ids.add(eid)
+                events.append(ev)
             url = data.get("next")
             params = {}
 
     logger.info(
-        "BSD /events/ %s: %d jogos buscados de %s disponíveis",
-        today, len(events), total_available,
+        "BSD /events/ %s: %d jogos únicos de %s disponíveis (%d duplicatas removidas)",
+        today, len(events), total_available, duplicates,
     )
     return events[:500]
 
