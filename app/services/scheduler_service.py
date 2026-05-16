@@ -37,8 +37,11 @@ def run_daily_pick():
     logger.info("Job 'run_daily_pick' disparado em %s", datetime.now().isoformat())
     try:
         asyncio.run(_run_all_picks())
-    except Exception:
-        logger.exception("Erro ao executar picks diários")
+    except Exception as e:
+        logger.exception(
+            "Erro ao executar picks diários: %s: %s",
+            type(e).__name__, e,
+        )
 
 
 def run_result_check():

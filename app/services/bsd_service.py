@@ -16,7 +16,7 @@ async def get_todays_events() -> list[dict]:
     events: list[dict] = []
     total_available: int | None = None
 
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         while url and len(events) < 500:
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
@@ -38,7 +38,7 @@ async def get_event_predictions(event_id: int) -> dict | None:
     headers = {"Authorization": f"Token {settings.bsd_api_key}"}
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             response = await client.get(
                 f"{BSD_BASE}/predictions/{event_id}/",
                 headers=headers
