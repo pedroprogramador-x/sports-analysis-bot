@@ -44,58 +44,73 @@ async def get_todays_events() -> list[dict]:
     return events[:500]
 
 
-async def get_event_predictions(event_id: int) -> dict | None:
+def _augment_prediction(pred: dict) -> dict:
+    """Adiciona prob_under_X derivado de prob_over_X (eventos complementares)."""
+    for over_key, under_key in (
+        ("prob_over_15", "prob_under_15"),
+        ("prob_over_25", "prob_under_25"),
+        ("prob_over_35", "prob_under_35"),
+    ):
+        over = pred.get(over_key)
+        if over is not None and under_key not in pred:
+            try:
+                pred[under_key] = 100 - float(over)
+            except (TypeError, ValueError):
+                pass
+    return pred
+
+
+async def get_all_predictions_today() -> dict[int, dict]:
     """
-    Busca a predição do CatBoost para um evento.
+    Busca TODAS as predições paginadas e indexa por event_id.
 
-    A BSD descontinuou GET /predictions/{event_id}/ (404) e agora expõe
-    GET /predictions/?event={event_id}, com resposta paginada em
-    {count, next, previous, results: [...]}. A predição vem em results[0].
-
-    Os campos prob_under_15/25/35 não existem mais na resposta e são
-    derivados como 100 - prob_over_X (complementares).
+    A BSD ignora o filtro ?event= e sempre retorna todas as predições
+    paginadas. Em vez de fazer N chamadas (todas pegando dados errados),
+    fazemos a paginação completa uma vez e indexamos localmente.
+    Retorna {event_id: prediction_dict}.
     """
     headers = {"Authorization": f"Token {settings.bsd_api_key}"}
+    url = f"{BSD_BASE}/predictions/"
+    params: dict = {}
+    predictions: dict[int, dict] = {}
+    total_available: int | None = None
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.get(
-                f"{BSD_BASE}/predictions/",
-                headers=headers,
-                params={"event": event_id},
-            )
-            if response.status_code != 200:
-                logger.warning(
-                    "BSD /predictions/?event=%s retornou HTTP %d",
-                    event_id, response.status_code,
-                )
-                return None
-
-            data = response.json()
-            results = data.get("results") or []
-            if not results:
-                return None
-
-            prediction = results[0]
-
-            # Deriva prob_under_X a partir de prob_over_X (eventos complementares)
-            for over_key, under_key in (
-                ("prob_over_15", "prob_under_15"),
-                ("prob_over_25", "prob_under_25"),
-                ("prob_over_35", "prob_under_35"),
-            ):
-                over = prediction.get(over_key)
-                if over is not None and under_key not in prediction:
-                    try:
-                        prediction[under_key] = 100 - float(over)
-                    except (TypeError, ValueError):
-                        pass
-
-            return prediction
-
+        async with httpx.AsyncClient(timeout=60) as client:
+            while url and len(predictions) < 1000:
+                response = await client.get(url, headers=headers, params=params)
+                if response.status_code != 200:
+                    logger.warning(
+                        "BSD /predictions/ retornou HTTP %d",
+                        response.status_code,
+                    )
+                    break
+                data = response.json()
+                if total_available is None:
+                    total_available = data.get("count")
+                for pred in data.get("results", []):
+                    ev = pred.get("event")
+                    eid = ev.get("id") if isinstance(ev, dict) else ev
+                    if eid is None or eid in predictions:
+                        continue
+                    predictions[eid] = _augment_prediction(pred)
+                url = data.get("next")
+                params = {}
     except (httpx.TimeoutException, httpx.HTTPError) as e:
-        logger.warning(
-            "BSD /predictions/?event=%s falhou: %s",
-            event_id, type(e).__name__,
-        )
-        return None
+        logger.warning("BSD /predictions/ falhou: %s", type(e).__name__)
+
+    logger.info(
+        "BSD /predictions/: %d predições indexadas de %s disponíveis",
+        len(predictions), total_available,
+    )
+    return predictions
+
+
+async def get_event_predictions(event_id: int) -> dict | None:
+    """
+    Lookup de predição para um único evento. Faz fetch completo
+    (paginado) e busca no dict. Útil para chamadas ad-hoc; para
+    batches, use get_all_predictions_today() uma vez e passe o dict.
+    """
+    all_preds = await get_all_predictions_today()
+    return all_preds.get(event_id)

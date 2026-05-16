@@ -36,12 +36,21 @@ async def notify_todays_acca():
 @router.post("/today/notify-all")
 async def notify_all():
     """Manda pick conservador + arrojado + acumulador no Telegram."""
+    import asyncio
+    from app.services.bsd_service import get_todays_events, get_all_predictions_today
     from app.services.daily_pick_service import find_conservative_pick
     from app.services.telegram_service import send_conservative_pick_notification
 
-    conservative = await find_conservative_pick()
-    pick = await find_daily_pick()
-    acca = await find_daily_acca()
+    events, predictions = await asyncio.gather(
+        get_todays_events(),
+        get_all_predictions_today(),
+    )
+
+    conservative, pick, acca = await asyncio.gather(
+        find_conservative_pick(events, predictions),
+        find_daily_pick(events, predictions),
+        find_daily_acca(events, predictions),
+    )
 
     await send_conservative_pick_notification(conservative)
     await send_daily_pick_notification(pick)

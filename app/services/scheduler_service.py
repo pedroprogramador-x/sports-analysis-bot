@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.services.bsd_service import get_todays_events
+from app.services.bsd_service import get_todays_events, get_all_predictions_today
 from app.services.daily_pick_service import (
     find_conservative_pick,
     find_daily_pick,
@@ -19,12 +19,15 @@ logger = logging.getLogger(__name__)
 
 
 async def _run_all_picks():
-    events = await get_todays_events()
+    events, predictions = await asyncio.gather(
+        get_todays_events(),
+        get_all_predictions_today(),
+    )
 
     conservative, pick, acca = await asyncio.gather(
-        find_conservative_pick(events),
-        find_daily_pick(events),
-        find_daily_acca(events),
+        find_conservative_pick(events, predictions),
+        find_daily_pick(events, predictions),
+        find_daily_acca(events, predictions),
     )
 
     await send_conservative_pick_notification(conservative)
