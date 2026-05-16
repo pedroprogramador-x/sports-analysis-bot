@@ -121,6 +121,74 @@ async def check_results():
     }
 
 
+@router.post("/diag/full-pagination", status_code=202)
+async def diag_full_pagination():
+    """Diagnostico: BG task pagina events + predictions completos e salva
+    markers separados para cada etapa, com tempos."""
+    import asyncio
+    import logging
+    import time
+    from app.database import SessionLocal
+    from app.models.pick_history import PickHistory
+    from app.services.bsd_service import get_todays_events, get_all_predictions_today
+
+    log = logging.getLogger(__name__)
+
+    def _save_marker(label: str, info: str):
+        try:
+            db = SessionLocal()
+            db.add(PickHistory(
+                home_team="DIAG",
+                away_team=label,
+                league="diagnostic",
+                kickoff=info,
+                market="full-pag",
+                odd=1.0,
+                probability=0.0,
+                value=0.0,
+                pick_type="diagnostic",
+                bsd_event_id=None,
+            ))
+            db.commit()
+            db.close()
+        except Exception:
+            log.exception("Marker %s nao salvou", label)
+
+    async def _job():
+        log.info("DIAG full-pagination iniciado")
+        _save_marker("START", datetime.utcnow().isoformat())
+
+        # Events pagination
+        t0 = time.time()
+        try:
+            events = await get_todays_events()
+            elapsed = time.time() - t0
+            _save_marker("EVENTS", f"OK_{len(events)}events_{elapsed:.1f}s")
+            log.info("DIAG EVENTS OK: %d in %.1fs", len(events), elapsed)
+        except Exception as e:
+            elapsed = time.time() - t0
+            _save_marker("EVENTS", f"EXC_{type(e).__name__}_{elapsed:.1f}s")
+            log.exception("DIAG EVENTS falhou")
+            return
+
+        # Predictions pagination
+        t0 = time.time()
+        try:
+            preds = await get_all_predictions_today()
+            elapsed = time.time() - t0
+            _save_marker("PREDS", f"OK_{len(preds)}preds_{elapsed:.1f}s")
+            log.info("DIAG PREDS OK: %d in %.1fs", len(preds), elapsed)
+        except Exception as e:
+            elapsed = time.time() - t0
+            _save_marker("PREDS", f"EXC_{type(e).__name__}_{elapsed:.1f}s")
+            log.exception("DIAG PREDS falhou")
+
+    task = asyncio.create_task(_job())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return {"status": "spawned", "check": "/api/picks/history em ~120s — procurar markers START/EVENTS/PREDS"}
+
+
 @router.post("/diag/bsd-ping", status_code=202)
 async def diag_bsd_ping():
     """Diagnostico: BG task hita BSD com 1 chamada e salva marker no banco
