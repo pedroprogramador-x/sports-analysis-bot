@@ -12,25 +12,26 @@ logger = logging.getLogger(__name__)
 async def get_todays_events() -> list[dict]:
     today = date.today().isoformat()
     headers = {"Authorization": f"Token {settings.bsd_api_key}"}
-    url = f"{BSD_BASE}/events/"
-    params: dict = {"date": today}
+    # Embute o filtro date na URL inicial em vez de usar params kwarg —
+    # httpx 0.28 com params={} apaga a query string da URL na 2a pagina,
+    # quebrando a paginacao silenciosamente.
+    url: str | None = f"{BSD_BASE}/events/?date={today}"
     events: list[dict] = []
     total_available: int | None = None
     seen_ids: set = set()
     duplicates = 0
     pages_ok = 0
     pages_fail = 0
-    MAX_PAGES = 20  # guarda contra loop infinito caso BSD retorne next repetido
+    MAX_PAGES = 20
 
     while url and len(events) < 500 and (pages_ok + pages_fail) < MAX_PAGES:
-        # Cliente fresco por pagina evita problemas de connection pool no Railway
         page_num = pages_ok + pages_fail + 1
         t0 = time.time()
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(90.0, connect=10.0)
             ) as client:
-                response = await client.get(url, headers=headers, params=params)
+                response = await client.get(url, headers=headers)
                 response.raise_for_status()
                 data = response.json()
         except (httpx.HTTPError, httpx.TimeoutException) as e:
@@ -55,7 +56,6 @@ async def get_todays_events() -> list[dict]:
             seen_ids.add(eid)
             events.append(ev)
         url = data.get("next")
-        params = {}
 
     logger.info(
         "BSD /events/ %s: %d jogos unicos (%d dups), %d/%d paginas, %s disponiveis",
@@ -90,8 +90,8 @@ async def get_all_predictions_today() -> dict[int, dict]:
     Retorna {event_id: prediction_dict}.
     """
     headers = {"Authorization": f"Token {settings.bsd_api_key}"}
-    url = f"{BSD_BASE}/predictions/"
-    params: dict = {}
+    # Idem get_todays_events: nao usar params kwarg em paginacao httpx 0.28
+    url: str | None = f"{BSD_BASE}/predictions/"
     predictions: dict[int, dict] = {}
     total_available: int | None = None
 
@@ -107,7 +107,7 @@ async def get_all_predictions_today() -> dict[int, dict]:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(90.0, connect=10.0)
             ) as client:
-                response = await client.get(url, headers=headers, params=params)
+                response = await client.get(url, headers=headers)
                 if response.status_code != 200:
                     logger.warning(
                         "BSD /predictions/ pagina %d HTTP %d em %.1fs — interrompendo com %d parciais",
@@ -135,7 +135,6 @@ async def get_all_predictions_today() -> dict[int, dict]:
                 continue
             predictions[eid] = _augment_prediction(pred)
         url = data.get("next")
-        params = {}
 
     logger.info(
         "BSD /predictions/: %d predicoes indexadas, %d/%d paginas, %s disponiveis",
